@@ -22,12 +22,29 @@ import {
   Sparkles,
   Info,
   ShieldCheck,
+  FolderPlus,
+  X,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { loans } from "@/lib/mock-data";
+import { loans as seedLoans } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+
+type Loan = {
+  id: string;
+  entity: string;
+  lender: string;
+  type: string;
+  originalAmount: number;
+  balance: number;
+  rate: number;
+  term: number;
+  monthsElapsed: number;
+  payment: number;
+  nextPayment: string;
+  status: string;
+};
 
 const fmt = (n: number) =>
   n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(3)}M` :
@@ -39,6 +56,9 @@ const loanIcons: Record<string, React.ElementType> = {
   "Primary Mortgage": Home,
   "Commercial Real Estate": Building2,
   "Auto Loan": Car,
+  "Business Loan": Briefcase,
+  "Education Loan": GraduationCap,
+  "Personal Loan": Landmark,
 };
 
 function computeAmortization(principal: number, annualRate: number, termMonths: number) {
@@ -92,10 +112,101 @@ const termOptions = [
   { months: 360, label: "30 yr" },
 ];
 
+const entityOptions = [
+  "Personal",
+  "Johnson Real Estate LLC",
+  "MJ Tech Consulting",
+  "Urban Eats Group",
+];
+
+function computeMonthlyPayment(principal: number, annualRate: number, termMonths: number) {
+  const r = annualRate / 100 / 12;
+  if (r === 0) return principal / termMonths;
+  return (principal * r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+}
+
 export default function LoansPage() {
   const [activeTab, setActiveTab] = useState<TabId>("loans");
-  const [selectedLoan, setSelectedLoan] = useState(loans[1]);
+  const [loans, setLoans] = useState<Loan[]>(seedLoans);
+  const [selectedLoan, setSelectedLoan] = useState<Loan>(seedLoans[1]);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
+
+  // Add existing loan modal state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addAssetType, setAddAssetType] = useState<string | null>(null);
+  const [addBalance, setAddBalance] = useState("");
+  const [addOriginal, setAddOriginal] = useState("");
+  const [addRate, setAddRate] = useState("");
+  const [addTerm, setAddTerm] = useState<number>(360);
+  const [addMonthsElapsed, setAddMonthsElapsed] = useState("");
+  const [addLender, setAddLender] = useState("");
+  const [addEntity, setAddEntity] = useState(entityOptions[0]);
+
+  const selectedAddAsset = assetTypes.find((a) => a.id === addAssetType) || null;
+  const addBalanceNum = Number(addBalance) || 0;
+  const addOriginalNum = Number(addOriginal) || addBalanceNum;
+  const addRateNum = Number(addRate) || 0;
+  const addMonthsElapsedNum = Math.max(0, Math.min(addTerm, Number(addMonthsElapsed) || 0));
+
+  const addCalculatedPayment = useMemo(() => {
+    if (addOriginalNum <= 0 || addRateNum <= 0 || addTerm <= 0) return 0;
+    return computeMonthlyPayment(addOriginalNum, addRateNum, addTerm);
+  }, [addOriginalNum, addRateNum, addTerm]);
+
+  const canSaveExisting =
+    !!addAssetType &&
+    addBalanceNum > 0 &&
+    addRateNum > 0 &&
+    addTerm > 0 &&
+    addLender.trim().length > 0;
+
+  const resetAddExisting = () => {
+    setAddAssetType(null);
+    setAddBalance("");
+    setAddOriginal("");
+    setAddRate("");
+    setAddTerm(360);
+    setAddMonthsElapsed("");
+    setAddLender("");
+    setAddEntity(entityOptions[0]);
+  };
+
+  const assetToLoanType = (id: string): string => {
+    switch (id) {
+      case "mortgage": return "Primary Mortgage";
+      case "commercial": return "Commercial Real Estate";
+      case "auto": return "Auto Loan";
+      case "business": return "Business Loan";
+      case "student": return "Education Loan";
+      case "personal": return "Personal Loan";
+      default: return "Loan";
+    }
+  };
+
+  const saveExistingLoan = () => {
+    if (!canSaveExisting || !selectedAddAsset) return;
+    const original = addOriginalNum > 0 ? addOriginalNum : addBalanceNum;
+    const payment = Math.round(
+      computeMonthlyPayment(original, addRateNum, addTerm)
+    );
+    const newLoan: Loan = {
+      id: `loan-${Date.now()}`,
+      entity: addEntity,
+      lender: addLender.trim(),
+      type: assetToLoanType(addAssetType!),
+      originalAmount: original,
+      balance: addBalanceNum,
+      rate: addRateNum,
+      term: addTerm,
+      monthsElapsed: addMonthsElapsedNum,
+      payment,
+      nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      status: "current",
+    };
+    setLoans((prev) => [newLoan, ...prev]);
+    resetAddExisting();
+    setAddOpen(false);
+  };
 
   const [modelAmount, setModelAmount] = useState(400000);
   const [modelRate, setModelRate] = useState(6.5);
@@ -202,21 +313,39 @@ export default function LoansPage() {
         {/* ── All Loans ──────────────────────────────────────────── */}
         {activeTab === "loans" && (
           <div className="space-y-3">
-            <button
-              onClick={() => { resetApply(); setActiveTab("apply"); }}
-              className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent p-4 text-left transition-all hover:border-primary/60 hover:from-primary/10 hover:to-primary/5 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                  <Plus className="size-5" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                onClick={() => { resetApply(); setActiveTab("apply"); }}
+                className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent p-4 text-left transition-all hover:border-primary/60 hover:from-primary/10 hover:to-primary/5 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                    <Plus className="size-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-foreground">Apply for a New Loan</p>
+                    <p className="text-[11px] text-muted-foreground">Pre-qualify in 3 quick steps</p>
+                  </div>
+                  <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-foreground">Apply for a New Loan</p>
-                  <p className="text-[11px] text-muted-foreground">Pre-qualify in 3 quick steps · No credit impact</p>
+              </button>
+
+              <button
+                onClick={() => { resetAddExisting(); setAddOpen(true); }}
+                className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-all hover:border-foreground/30 hover:bg-muted/40 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+                    <FolderPlus className="size-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-foreground">Add Existing Loan</p>
+                    <p className="text-[11px] text-muted-foreground">Track a loan you already have</p>
+                  </div>
+                  <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </div>
-                <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </button>
+              </button>
+            </div>
 
             {loans.map((loan) => {
               const Icon = loanIcons[loan.type] || Landmark;
@@ -883,6 +1012,223 @@ export default function LoansPage() {
         )}
 
       </motion.div>
+
+      {/* Add Existing Loan Modal */}
+      <AnimatePresence>
+        {addOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setAddOpen(false)}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-x-2 bottom-2 sm:inset-x-0 sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[min(520px,calc(100vw-2rem))] z-50"
+            >
+              <div className="bg-card rounded-2xl border border-border shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[85vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+                      <FolderPlus className="size-4 text-foreground" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">Add Existing Loan</h2>
+                      <p className="text-[11px] text-muted-foreground">Track a loan you already have</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAddOpen(false)}
+                    className="flex size-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                  {/* Asset type */}
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-2">Asset Type</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {assetTypes.map((a) => {
+                        const active = addAssetType === a.id;
+                        return (
+                          <button
+                            key={a.id}
+                            onClick={() => setAddAssetType(a.id)}
+                            className={cn(
+                              "flex flex-col items-center gap-1 rounded-xl border p-2.5 transition-all active:scale-[0.98]",
+                              active
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "border-border bg-card hover:border-primary/30 hover:bg-muted/40"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex size-7 items-center justify-center rounded-lg",
+                              active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                            )}>
+                              <a.icon className="size-3.5" />
+                            </div>
+                            <p className="text-[10px] font-semibold text-foreground leading-tight text-center">{a.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Current Balance */}
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">
+                      Current Balance <span className="font-normal text-muted-foreground">(remaining)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={addBalance}
+                        onChange={(e) => setAddBalance(e.target.value)}
+                        className="w-full bg-muted rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Original amount + months elapsed */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Original Amount <span className="font-normal text-muted-foreground">(opt.)</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={addOriginal}
+                          onChange={(e) => setAddOriginal(e.target.value)}
+                          className="w-full bg-muted rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Months Paid <span className="font-normal text-muted-foreground">(opt.)</span>
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={addMonthsElapsed}
+                        onChange={(e) => setAddMonthsElapsed(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rate + Term */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Rate</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step={0.125}
+                          placeholder="0.00"
+                          value={addRate}
+                          onChange={(e) => setAddRate(e.target.value)}
+                          className="w-full bg-muted rounded-xl px-3 pr-8 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
+                      <select
+                        value={addTerm}
+                        onChange={(e) => setAddTerm(Number(e.target.value))}
+                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      >
+                        {termOptions.map((t) => (
+                          <option key={t.months} value={t.months}>{t.label} ({t.months} mo)</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Lender + Entity */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Lender</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Chase Bank"
+                        value={addLender}
+                        onChange={(e) => setAddLender(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Entity</label>
+                      <select
+                        value={addEntity}
+                        onChange={(e) => setAddEntity(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      >
+                        {entityOptions.map((e) => (
+                          <option key={e} value={e}>{e}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Computed payment preview */}
+                  {addCalculatedPayment > 0 && (
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Info className="size-3.5 text-primary" />
+                        <p className="text-[11px] font-semibold text-foreground">Calculated monthly payment</p>
+                      </div>
+                      <p className="text-sm font-bold text-primary">{fmtCur(addCalculatedPayment)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex gap-2 px-5 py-3 border-t border-border bg-muted/30">
+                  <button
+                    onClick={() => setAddOpen(false)}
+                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!canSaveExisting}
+                    onClick={saveExistingLoan}
+                    className={cn(
+                      "flex-[1.3] rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
+                      "bg-primary text-primary-foreground hover:opacity-95",
+                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
+                    )}
+                  >
+                    <Check className="size-3.5" strokeWidth={3} /> Save Loan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
