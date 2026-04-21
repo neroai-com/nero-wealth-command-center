@@ -23,7 +23,6 @@ import {
   Info,
   ShieldCheck,
   FolderPlus,
-  X,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -93,7 +92,7 @@ function computeAmortization(principal: number, annualRate: number, termMonths: 
   return { schedule, payment, totalInterest, totalPaid: payment * termMonths };
 }
 
-type TabId = "loans" | "modeler" | "schedule" | "apply";
+type TabId = "loans" | "modeler" | "schedule" | "apply" | "add";
 
 const assetTypes = [
   { id: "mortgage", label: "Home Mortgage", sub: "Primary or secondary residence", icon: Home, rateHint: 6.5 },
@@ -131,8 +130,8 @@ export default function LoansPage() {
   const [selectedLoan, setSelectedLoan] = useState<Loan>(seedLoans[1]);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
 
-  // Add existing loan modal state
-  const [addOpen, setAddOpen] = useState(false);
+  // Add existing loan state
+  const [addSavedId, setAddSavedId] = useState<string | null>(null);
   const [addAssetType, setAddAssetType] = useState<string | null>(null);
   const [addBalance, setAddBalance] = useState("");
   const [addOriginal, setAddOriginal] = useState("");
@@ -169,6 +168,7 @@ export default function LoansPage() {
     setAddMonthsElapsed("");
     setAddLender("");
     setAddEntity(entityOptions[0]);
+    setAddSavedId(null);
   };
 
   const assetToLoanType = (id: string): string => {
@@ -204,8 +204,7 @@ export default function LoansPage() {
       status: "current",
     };
     setLoans((prev) => [newLoan, ...prev]);
-    resetAddExisting();
-    setAddOpen(false);
+    setAddSavedId(newLoan.id);
   };
 
   const [modelAmount, setModelAmount] = useState(400000);
@@ -259,6 +258,7 @@ export default function LoansPage() {
   const tabs = [
     { id: "loans" as TabId, label: "Loans", icon: Landmark },
     { id: "apply" as TabId, label: "Apply", icon: FilePlus2 },
+    { id: "add" as TabId, label: "Add Existing", icon: FolderPlus },
     { id: "modeler" as TabId, label: "Modeler", icon: Calculator },
     { id: "schedule" as TabId, label: "Schedule", icon: BarChart2 },
   ];
@@ -331,7 +331,7 @@ export default function LoansPage() {
               </button>
 
               <button
-                onClick={() => { resetAddExisting(); setAddOpen(true); }}
+                onClick={() => { resetAddExisting(); setActiveTab("add"); }}
                 className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-all hover:border-foreground/30 hover:bg-muted/40 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3">
@@ -797,6 +797,266 @@ export default function LoansPage() {
           </div>
         )}
 
+        {/* ── Add Existing Loan ─────────────────────────────────── */}
+        {activeTab === "add" && (
+          <div className="space-y-4">
+            {addSavedId ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 shadow-sm p-6 text-center"
+              >
+                <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-emerald-500/15 ring-8 ring-emerald-500/5">
+                  <Check className="size-7 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
+                </div>
+                <h2 className="text-base font-bold text-foreground">Loan added</h2>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                  Your {selectedAddAsset?.label.toLowerCase()} from {addLender} is now being tracked.
+                </p>
+
+                <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={() => { resetAddExisting(); setActiveTab("loans"); }}
+                    className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-95 transition-opacity"
+                  >
+                    View Loans
+                  </button>
+                  <button
+                    onClick={() => resetAddExisting()}
+                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
+                  >
+                    Add Another
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                {/* Hero */}
+                <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/60 via-card to-card shadow-sm p-5">
+                  <div className="absolute -right-8 -top-8 size-32 rounded-full bg-foreground/5 blur-2xl" />
+                  <div className="relative flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
+                      <FolderPlus className="size-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-base font-bold text-foreground">Add Existing Loan</h2>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Track a loan you already have — we&apos;ll calculate the monthly payment for you.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Asset type */}
+                <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold text-foreground">Asset Type</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">What kind of loan is this?</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {assetTypes.map((a) => {
+                      const active = addAssetType === a.id;
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => setAddAssetType(a.id)}
+                          className={cn(
+                            "group relative text-left rounded-xl border p-3 transition-all active:scale-[0.98]",
+                            active
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
+                          )}
+                        >
+                          <div className={cn(
+                            "flex size-8 items-center justify-center rounded-lg mb-2 transition-colors",
+                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                          )}>
+                            <a.icon className="size-4" />
+                          </div>
+                          <p className="text-xs font-semibold text-foreground leading-tight">{a.label}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{a.sub}</p>
+                          {active && (
+                            <div className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary">
+                              <Check className="size-2.5 text-primary-foreground" strokeWidth={4} />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Balances */}
+                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Balances</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Current balance is what you still owe.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">
+                      Current Balance <span className="font-normal text-muted-foreground">(remaining)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={addBalance}
+                        onChange={(e) => setAddBalance(e.target.value)}
+                        className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Original Amount <span className="font-normal text-muted-foreground">(opt.)</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={addOriginal}
+                          onChange={(e) => setAddOriginal(e.target.value)}
+                          className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Months Paid <span className="font-normal text-muted-foreground">(opt.)</span>
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={addMonthsElapsed}
+                        onChange={(e) => setAddMonthsElapsed(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rate & Term */}
+                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Rate & Term</h3>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">Interest Rate</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step={0.125}
+                        placeholder="0.00"
+                        value={addRate}
+                        onChange={(e) => setAddRate(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 pr-8 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {termOptions.map((t) => (
+                        <button
+                          key={t.months}
+                          onClick={() => setAddTerm(t.months)}
+                          className={cn(
+                            "rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95",
+                            addTerm === t.months
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lender & Entity */}
+                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Lender & Entity</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Lender</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Chase Bank"
+                        value={addLender}
+                        onChange={(e) => setAddLender(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">Entity</label>
+                      <select
+                        value={addEntity}
+                        onChange={(e) => setAddEntity(e.target.value)}
+                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                      >
+                        {entityOptions.map((e) => (
+                          <option key={e} value={e}>{e}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calculated payment */}
+                {addCalculatedPayment > 0 && (
+                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Info className="size-4 text-primary" />
+                      <div>
+                        <p className="text-[11px] font-semibold text-primary uppercase tracking-wide">Calculated</p>
+                        <p className="text-xs text-muted-foreground">Monthly payment</p>
+                      </div>
+                    </div>
+                    <p className="text-lg font-bold text-primary">{fmtCur(addCalculatedPayment)}</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => { resetAddExisting(); setActiveTab("loans"); }}
+                    className="flex-1 rounded-xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!canSaveExisting}
+                    onClick={saveExistingLoan}
+                    className={cn(
+                      "flex-[1.3] rounded-xl py-3 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
+                      "bg-primary text-primary-foreground hover:opacity-95",
+                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
+                    )}
+                  >
+                    <Check className="size-3.5" strokeWidth={3} /> Save Loan
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Loan Modeler ──────────────────────────────────────── */}
         {activeTab === "modeler" && (
           <div className="space-y-4">
@@ -1012,223 +1272,6 @@ export default function LoansPage() {
         )}
 
       </motion.div>
-
-      {/* Add Existing Loan Modal */}
-      <AnimatePresence>
-        {addOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              onClick={() => setAddOpen(false)}
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.97 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-x-2 bottom-2 sm:inset-x-0 sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[min(520px,calc(100vw-2rem))] z-50"
-            >
-              <div className="bg-card rounded-2xl border border-border shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[85vh]">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
-                      <FolderPlus className="size-4 text-foreground" />
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-foreground">Add Existing Loan</h2>
-                      <p className="text-[11px] text-muted-foreground">Track a loan you already have</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setAddOpen(false)}
-                    className="flex size-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-
-                {/* Body */}
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-                  {/* Asset type */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-2">Asset Type</label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {assetTypes.map((a) => {
-                        const active = addAssetType === a.id;
-                        return (
-                          <button
-                            key={a.id}
-                            onClick={() => setAddAssetType(a.id)}
-                            className={cn(
-                              "flex flex-col items-center gap-1 rounded-xl border p-2.5 transition-all active:scale-[0.98]",
-                              active
-                                ? "border-primary bg-primary/5 shadow-sm"
-                                : "border-border bg-card hover:border-primary/30 hover:bg-muted/40"
-                            )}
-                          >
-                            <div className={cn(
-                              "flex size-7 items-center justify-center rounded-lg",
-                              active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                            )}>
-                              <a.icon className="size-3.5" />
-                            </div>
-                            <p className="text-[10px] font-semibold text-foreground leading-tight text-center">{a.label}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Current Balance */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Current Balance <span className="font-normal text-muted-foreground">(remaining)</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        placeholder="0"
-                        value={addBalance}
-                        onChange={(e) => setAddBalance(e.target.value)}
-                        className="w-full bg-muted rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Original amount + months elapsed */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">
-                        Original Amount <span className="font-normal text-muted-foreground">(opt.)</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          placeholder="0"
-                          value={addOriginal}
-                          onChange={(e) => setAddOriginal(e.target.value)}
-                          className="w-full bg-muted rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">
-                        Months Paid <span className="font-normal text-muted-foreground">(opt.)</span>
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={addMonthsElapsed}
-                        onChange={(e) => setAddMonthsElapsed(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Rate + Term */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Rate</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step={0.125}
-                          placeholder="0.00"
-                          value={addRate}
-                          onChange={(e) => setAddRate(e.target.value)}
-                          className="w-full bg-muted rounded-xl px-3 pr-8 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
-                      <select
-                        value={addTerm}
-                        onChange={(e) => setAddTerm(Number(e.target.value))}
-                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      >
-                        {termOptions.map((t) => (
-                          <option key={t.months} value={t.months}>{t.label} ({t.months} mo)</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Lender + Entity */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Lender</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Chase Bank"
-                        value={addLender}
-                        onChange={(e) => setAddLender(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Entity</label>
-                      <select
-                        value={addEntity}
-                        onChange={(e) => setAddEntity(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      >
-                        {entityOptions.map((e) => (
-                          <option key={e} value={e}>{e}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Computed payment preview */}
-                  {addCalculatedPayment > 0 && (
-                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Info className="size-3.5 text-primary" />
-                        <p className="text-[11px] font-semibold text-foreground">Calculated monthly payment</p>
-                      </div>
-                      <p className="text-sm font-bold text-primary">{fmtCur(addCalculatedPayment)}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="flex gap-2 px-5 py-3 border-t border-border bg-muted/30">
-                  <button
-                    onClick={() => setAddOpen(false)}
-                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={!canSaveExisting}
-                    onClick={saveExistingLoan}
-                    className={cn(
-                      "flex-[1.3] rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
-                      "bg-primary text-primary-foreground hover:opacity-95",
-                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
-                    )}
-                  >
-                    <Check className="size-3.5" strokeWidth={3} /> Save Loan
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
