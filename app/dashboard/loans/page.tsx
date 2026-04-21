@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Landmark,
   Calculator,
@@ -11,53 +11,46 @@ import {
   Car,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   Download,
   BarChart2,
-  Plus,
-  FilePlus2,
-  GraduationCap,
   Briefcase,
   Check,
   ArrowRight,
-  Sparkles,
   Info,
   ShieldCheck,
-  FolderPlus,
+  Handshake,
+  FileText,
+  Users,
+  UserCircle,
+  FolderOpen,
+  LineChart,
+  ClipboardCheck,
+  SlidersHorizontal,
+  Scale,
+  Flag,
+  AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { loans as seedLoans } from "@/lib/mock-data";
+import { loans } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
-
-type Loan = {
-  id: string;
-  entity: string;
-  lender: string;
-  type: string;
-  originalAmount: number;
-  balance: number;
-  rate: number;
-  term: number;
-  monthsElapsed: number;
-  payment: number;
-  nextPayment: string;
-  status: string;
-};
 
 const fmt = (n: number) =>
   n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(3)}M` :
   n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : `$${n.toLocaleString()}`;
 
-const fmtCur = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtCur = (n: number) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtCur0 = (n: number) =>
+  `$${Math.round(n).toLocaleString("en-US")}`;
 
 const loanIcons: Record<string, React.ElementType> = {
   "Primary Mortgage": Home,
   "Commercial Real Estate": Building2,
   "Auto Loan": Car,
-  "Business Loan": Briefcase,
-  "Education Loan": GraduationCap,
-  "Personal Loan": Landmark,
 };
 
 function computeAmortization(principal: number, annualRate: number, termMonths: number) {
@@ -92,153 +85,93 @@ function computeAmortization(principal: number, annualRate: number, termMonths: 
   return { schedule, payment, totalInterest, totalPaid: payment * termMonths };
 }
 
-type TabId = "loans" | "modeler" | "schedule" | "apply" | "add";
-
-const assetTypes = [
-  { id: "mortgage", label: "Home Mortgage", sub: "Primary or secondary residence", icon: Home, rateHint: 6.5 },
-  { id: "commercial", label: "Commercial RE", sub: "Investment property", icon: Building2, rateHint: 7.25 },
-  { id: "auto", label: "Auto Loan", sub: "New or used vehicle", icon: Car, rateHint: 5.9 },
-  { id: "business", label: "Business Loan", sub: "Working capital / growth", icon: Briefcase, rateHint: 8.5 },
-  { id: "student", label: "Education", sub: "Student or continuing ed", icon: GraduationCap, rateHint: 6.8 },
-  { id: "personal", label: "Personal", sub: "Unsecured personal loan", icon: Landmark, rateHint: 9.5 },
-];
-
-const termOptions = [
-  { months: 60, label: "5 yr" },
-  { months: 120, label: "10 yr" },
-  { months: 180, label: "15 yr" },
-  { months: 240, label: "20 yr" },
-  { months: 360, label: "30 yr" },
-];
-
-const entityOptions = [
-  "Personal",
-  "Johnson Real Estate LLC",
-  "MJ Tech Consulting",
-  "Urban Eats Group",
-];
-
-function computeMonthlyPayment(principal: number, annualRate: number, termMonths: number) {
-  const r = annualRate / 100 / 12;
-  if (r === 0) return principal / termMonths;
-  return (principal * r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+function monthlyPaymentFor(principal: number, annualRatePct: number, amortYears: number) {
+  const r = annualRatePct / 100 / 12;
+  const n = amortYears * 12;
+  if (r === 0) return principal / n;
+  return (principal * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1);
 }
+
+function buildBrokerSchedule(
+  principal: number,
+  annualRatePct: number,
+  amortYears: number,
+  remainingYears: number
+) {
+  const r = annualRatePct / 100 / 12;
+  const totalAmortMonths = Math.round(amortYears * 12);
+  const horizonMonths = Math.round(remainingYears * 12);
+  const payment = monthlyPaymentFor(principal, annualRatePct, amortYears);
+  let bal = principal;
+  const rows: { month: number; payment: number; interest: number; principal: number; balance: number }[] = [];
+  let totalInt = 0;
+
+  for (let m = 1; m <= horizonMonths; m++) {
+    const interest = r === 0 ? 0 : bal * r;
+    let principalPaid = payment - interest;
+    if (m > totalAmortMonths) principalPaid = 0;
+    if (principalPaid > bal) principalPaid = bal;
+    bal -= principalPaid;
+    totalInt += interest;
+    rows.push({ month: m, payment, interest, principal: principalPaid, balance: bal < 0 ? 0 : bal });
+    if (bal <= 0.01) break;
+  }
+
+  return { payment, rows, totalInterest: totalInt, balloon: bal < 0 ? 0 : bal };
+}
+
+function aggregateAnnual(rows: { month: number; payment: number; interest: number; principal: number; balance: number }[]) {
+  const out = [];
+  for (let i = 0; i < rows.length; i += 12) {
+    const chunk = rows.slice(i, i + 12);
+    if (!chunk.length) continue;
+    const year = Math.floor(i / 12) + 1;
+    out.push({
+      year,
+      payment: chunk.reduce((a, r) => a + r.payment, 0),
+      interest: chunk.reduce((a, r) => a + r.interest, 0),
+      principal: chunk.reduce((a, r) => a + r.principal, 0),
+      balance: chunk[chunk.length - 1].balance,
+    });
+  }
+  return out;
+}
+
+type TabId = "loans" | "brokerage" | "modeler" | "schedule";
+
+type BrokerScreen =
+  | "home"
+  | "intake"
+  | "ownership"
+  | "sponsors"
+  | "sponsor-detail"
+  | "borrower-package"
+  | "collateral"
+  | "projections"
+  | "qa"
+  | "scenario"
+  | "lender-match"
+  | "term-sheets"
+  | "closing";
+
+const dealTypes = [
+  "Refinance",
+  "Acquisition",
+  "Cash-out refi",
+  "Working capital LOC",
+  "Construction / bridge",
+  "SBA / owner-occupied",
+];
 
 export default function LoansPage() {
   const [activeTab, setActiveTab] = useState<TabId>("loans");
-  const [loans, setLoans] = useState<Loan[]>(seedLoans);
-  const [selectedLoan, setSelectedLoan] = useState<Loan>(seedLoans[1]);
+  const [selectedLoan, setSelectedLoan] = useState(loans[1]);
   const [expandedLoan, setExpandedLoan] = useState<string | null>(null);
-
-  // Add existing loan state
-  const [addSavedId, setAddSavedId] = useState<string | null>(null);
-  const [addAssetType, setAddAssetType] = useState<string | null>(null);
-  const [addBalance, setAddBalance] = useState("");
-  const [addOriginal, setAddOriginal] = useState("");
-  const [addRate, setAddRate] = useState("");
-  const [addTerm, setAddTerm] = useState<number>(360);
-  const [addMonthsElapsed, setAddMonthsElapsed] = useState("");
-  const [addLender, setAddLender] = useState("");
-  const [addEntity, setAddEntity] = useState(entityOptions[0]);
-
-  const selectedAddAsset = assetTypes.find((a) => a.id === addAssetType) || null;
-  const addBalanceNum = Number(addBalance) || 0;
-  const addOriginalNum = Number(addOriginal) || addBalanceNum;
-  const addRateNum = Number(addRate) || 0;
-  const addMonthsElapsedNum = Math.max(0, Math.min(addTerm, Number(addMonthsElapsed) || 0));
-
-  const addCalculatedPayment = useMemo(() => {
-    if (addOriginalNum <= 0 || addRateNum <= 0 || addTerm <= 0) return 0;
-    return computeMonthlyPayment(addOriginalNum, addRateNum, addTerm);
-  }, [addOriginalNum, addRateNum, addTerm]);
-
-  const canSaveExisting =
-    !!addAssetType &&
-    addBalanceNum > 0 &&
-    addRateNum > 0 &&
-    addTerm > 0 &&
-    addLender.trim().length > 0;
-
-  const resetAddExisting = () => {
-    setAddAssetType(null);
-    setAddBalance("");
-    setAddOriginal("");
-    setAddRate("");
-    setAddTerm(360);
-    setAddMonthsElapsed("");
-    setAddLender("");
-    setAddEntity(entityOptions[0]);
-    setAddSavedId(null);
-  };
-
-  const assetToLoanType = (id: string): string => {
-    switch (id) {
-      case "mortgage": return "Primary Mortgage";
-      case "commercial": return "Commercial Real Estate";
-      case "auto": return "Auto Loan";
-      case "business": return "Business Loan";
-      case "student": return "Education Loan";
-      case "personal": return "Personal Loan";
-      default: return "Loan";
-    }
-  };
-
-  const saveExistingLoan = () => {
-    if (!canSaveExisting || !selectedAddAsset) return;
-    const original = addOriginalNum > 0 ? addOriginalNum : addBalanceNum;
-    const payment = Math.round(
-      computeMonthlyPayment(original, addRateNum, addTerm)
-    );
-    const newLoan: Loan = {
-      id: `loan-${Date.now()}`,
-      entity: addEntity,
-      lender: addLender.trim(),
-      type: assetToLoanType(addAssetType!),
-      originalAmount: original,
-      balance: addBalanceNum,
-      rate: addRateNum,
-      term: addTerm,
-      monthsElapsed: addMonthsElapsedNum,
-      payment,
-      nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      status: "current",
-    };
-    setLoans((prev) => [newLoan, ...prev]);
-    setAddSavedId(newLoan.id);
-  };
 
   const [modelAmount, setModelAmount] = useState(400000);
   const [modelRate, setModelRate] = useState(6.5);
   const [modelTerm, setModelTerm] = useState(360);
   const [compareRate, setCompareRate] = useState(5.75);
-
-  // Apply flow state
-  const [applyStep, setApplyStep] = useState<1 | 2 | 3>(1);
-  const [applyAssetType, setApplyAssetType] = useState<string | null>(null);
-  const [applyBalance, setApplyBalance] = useState<string>("");
-  const [applyRate, setApplyRate] = useState<string>("");
-  const [applyTerm, setApplyTerm] = useState<number>(360);
-  const [applySubmitted, setApplySubmitted] = useState(false);
-
-  const selectedAsset = assetTypes.find((a) => a.id === applyAssetType) || null;
-  const applyBalanceNum = Number(applyBalance) || 0;
-  const applyRateNum = Number(applyRate) || 0;
-  const applyPreview = useMemo(() => {
-    if (applyBalanceNum <= 0 || applyRateNum <= 0) return null;
-    return computeAmortization(applyBalanceNum, applyRateNum, applyTerm);
-  }, [applyBalanceNum, applyRateNum, applyTerm]);
-
-  const canAdvanceStep1 = !!applyAssetType;
-  const canAdvanceStep2 = applyBalanceNum > 0 && applyRateNum > 0 && applyTerm > 0;
-
-  const resetApply = () => {
-    setApplyStep(1);
-    setApplyAssetType(null);
-    setApplyBalance("");
-    setApplyRate("");
-    setApplyTerm(360);
-    setApplySubmitted(false);
-  };
 
   const model1 = useMemo(() => computeAmortization(modelAmount, modelRate, modelTerm), [modelAmount, modelRate, modelTerm]);
   const model2 = useMemo(() => computeAmortization(modelAmount, compareRate, modelTerm), [modelAmount, compareRate, modelTerm]);
@@ -257,8 +190,7 @@ export default function LoansPage() {
 
   const tabs = [
     { id: "loans" as TabId, label: "Loans", icon: Landmark },
-    { id: "apply" as TabId, label: "Apply", icon: FilePlus2 },
-    { id: "add" as TabId, label: "Add Existing", icon: FolderPlus },
+    { id: "brokerage" as TabId, label: "Brokerage", icon: Handshake },
     { id: "modeler" as TabId, label: "Modeler", icon: Calculator },
     { id: "schedule" as TabId, label: "Schedule", icon: BarChart2 },
   ];
@@ -267,7 +199,7 @@ export default function LoansPage() {
     <div className="px-4 sm:px-6 lg:px-8 py-5 max-w-7xl mx-auto space-y-5">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <h1 className="text-xl font-bold text-foreground">Loans & Lending</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Track, model, and optimize across all entities</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Track, model, broker, and optimize across all entities</p>
       </motion.div>
 
       {/* Summary */}
@@ -313,39 +245,21 @@ export default function LoansPage() {
         {/* ── All Loans ──────────────────────────────────────────── */}
         {activeTab === "loans" && (
           <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                onClick={() => { resetApply(); setActiveTab("apply"); }}
-                className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent p-4 text-left transition-all hover:border-primary/60 hover:from-primary/10 hover:to-primary/5 active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                    <Plus className="size-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-foreground">Apply for a New Loan</p>
-                    <p className="text-[11px] text-muted-foreground">Pre-qualify in 3 quick steps</p>
-                  </div>
-                  <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
+            <button
+              onClick={() => setActiveTab("brokerage")}
+              className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent p-4 text-left transition-all hover:border-primary/60 hover:from-primary/10 hover:to-primary/5 active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                  <Handshake className="size-5" />
                 </div>
-              </button>
-
-              <button
-                onClick={() => { resetAddExisting(); setActiveTab("add"); }}
-                className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-all hover:border-foreground/30 hover:bg-muted/40 active:scale-[0.99]"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-                    <FolderPlus className="size-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-foreground">Add Existing Loan</p>
-                    <p className="text-[11px] text-muted-foreground">Track a loan you already have</p>
-                  </div>
-                  <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-foreground">Loan Brokerage & Refi Marketplace</p>
+                  <p className="text-[11px] text-muted-foreground">Package, match, and close commercial deals</p>
                 </div>
-              </button>
-            </div>
+                <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </button>
 
             {loans.map((loan) => {
               const Icon = loanIcons[loan.type] || Landmark;
@@ -441,621 +355,8 @@ export default function LoansPage() {
           </div>
         )}
 
-        {/* ── Apply for New Loan ────────────────────────────────── */}
-        {activeTab === "apply" && (
-          <div className="space-y-4">
-            {applySubmitted ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 shadow-sm p-6 text-center"
-              >
-                <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-emerald-500/15 ring-8 ring-emerald-500/5">
-                  <Check className="size-7 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
-                </div>
-                <h2 className="text-base font-bold text-foreground">Application submitted</h2>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                  We've received your {selectedAsset?.label.toLowerCase()} request. Your advisor will reach out within 1 business day.
-                </p>
-
-                <div className="mt-5 grid grid-cols-2 gap-2 text-left">
-                  <div className="rounded-xl bg-muted/60 p-2.5">
-                    <p className="text-[10px] text-muted-foreground">Requested</p>
-                    <p className="text-sm font-bold">{fmt(applyBalanceNum)}</p>
-                  </div>
-                  <div className="rounded-xl bg-muted/60 p-2.5">
-                    <p className="text-[10px] text-muted-foreground">Est. Monthly</p>
-                    <p className="text-sm font-bold">{applyPreview ? fmtCur(applyPreview.payment) : "—"}</p>
-                  </div>
-                  <div className="rounded-xl bg-muted/60 p-2.5">
-                    <p className="text-[10px] text-muted-foreground">Rate</p>
-                    <p className="text-sm font-bold">{applyRateNum}%</p>
-                  </div>
-                  <div className="rounded-xl bg-muted/60 p-2.5">
-                    <p className="text-[10px] text-muted-foreground">Term</p>
-                    <p className="text-sm font-bold">{applyTerm / 12} yr</p>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex gap-2">
-                  <button
-                    onClick={() => { resetApply(); setActiveTab("loans"); }}
-                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
-                  >
-                    Back to Loans
-                  </button>
-                  <button
-                    onClick={resetApply}
-                    className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-95 transition-opacity"
-                  >
-                    Start Another
-                  </button>
-                </div>
-              </motion.div>
-            ) : (
-              <>
-                {/* Hero */}
-                <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card shadow-sm p-5">
-                  <div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary/10 blur-2xl" />
-                  <div className="relative flex items-start gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                      <Sparkles className="size-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-base font-bold text-foreground">Apply for a New Loan</h2>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Tell us what you need — get an indicative rate in under a minute.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stepper */}
-                <div className="flex items-center gap-2 px-0.5">
-                  {[1, 2, 3].map((step, i) => (
-                    <div key={step} className="flex items-center flex-1 last:flex-none">
-                      <div
-                        className={cn(
-                          "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors",
-                          step < applyStep
-                            ? "bg-primary text-primary-foreground"
-                            : step === applyStep
-                            ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {step < applyStep ? <Check className="size-3" strokeWidth={3} /> : step}
-                      </div>
-                      <div className="ml-2 text-[10px] font-semibold text-foreground whitespace-nowrap">
-                        {step === 1 ? "Asset" : step === 2 ? "Details" : "Review"}
-                      </div>
-                      {i < 2 && (
-                        <div
-                          className={cn(
-                            "mx-2 flex-1 h-0.5 rounded-full transition-colors",
-                            step < applyStep ? "bg-primary" : "bg-muted"
-                          )}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Step content */}
-                <AnimatePresence mode="wait">
-                  {applyStep === 1 && (
-                    <motion.div
-                      key="step-1"
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="bg-card rounded-2xl border border-border shadow-sm p-4"
-                    >
-                      <div className="mb-3">
-                        <h3 className="text-sm font-semibold text-foreground">What are you borrowing for?</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Choose the asset type below.</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {assetTypes.map((a) => {
-                          const active = applyAssetType === a.id;
-                          return (
-                            <button
-                              key={a.id}
-                              onClick={() => {
-                                setApplyAssetType(a.id);
-                                if (!applyRate) setApplyRate(String(a.rateHint));
-                              }}
-                              className={cn(
-                                "group relative text-left rounded-xl border p-3 transition-all active:scale-[0.98]",
-                                active
-                                  ? "border-primary bg-primary/5 shadow-sm"
-                                  : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
-                              )}
-                            >
-                              <div className={cn(
-                                "flex size-8 items-center justify-center rounded-lg mb-2 transition-colors",
-                                active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                              )}>
-                                <a.icon className="size-4" />
-                              </div>
-                              <p className="text-xs font-semibold text-foreground leading-tight">{a.label}</p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{a.sub}</p>
-                              {active && (
-                                <div className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary">
-                                  <Check className="size-2.5 text-primary-foreground" strokeWidth={4} />
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {applyStep === 2 && (
-                    <motion.div
-                      key="step-2"
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4"
-                    >
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground">Loan details</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {selectedAsset?.label} · typical rate {selectedAsset?.rateHint}%
-                        </p>
-                      </div>
-
-                      {/* Current Balance */}
-                      <div>
-                        <label className="block text-xs font-semibold text-foreground mb-1.5">
-                          Current Balance
-                          <span className="ml-1 font-normal text-muted-foreground">(amount you need)</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="0"
-                            value={applyBalance}
-                            onChange={(e) => setApplyBalance(e.target.value)}
-                            className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                          />
-                        </div>
-                        <div className="mt-2 flex gap-1.5 flex-wrap">
-                          {[50000, 100000, 250000, 500000].map((v) => (
-                            <button
-                              key={v}
-                              onClick={() => setApplyBalance(String(v))}
-                              className="text-[10px] font-medium px-2 py-1 rounded-full bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {fmt(v)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Rate */}
-                      <div>
-                        <label className="block text-xs font-semibold text-foreground mb-1.5">Interest Rate</label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step={0.125}
-                            placeholder="0.00"
-                            value={applyRate}
-                            onChange={(e) => setApplyRate(e.target.value)}
-                            className="w-full bg-muted rounded-xl px-3 pr-8 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
-                        </div>
-                      </div>
-
-                      {/* Term */}
-                      <div>
-                        <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {termOptions.map((t) => (
-                            <button
-                              key={t.months}
-                              onClick={() => setApplyTerm(t.months)}
-                              className={cn(
-                                "rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95",
-                                applyTerm === t.months
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                              )}
-                            >
-                              {t.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Live preview */}
-                      {applyPreview && (
-                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <Info className="size-3 text-primary" />
-                            <p className="text-[10px] font-bold text-primary uppercase tracking-wide">Estimated</p>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <p className="text-[10px] text-muted-foreground">Monthly</p>
-                              <p className="text-sm font-bold text-foreground">{fmtCur(applyPreview.payment)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-muted-foreground">Total Interest</p>
-                              <p className="text-sm font-bold text-foreground">{fmt(applyPreview.totalInterest)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-muted-foreground">Total Paid</p>
-                              <p className="text-sm font-bold text-foreground">{fmt(applyPreview.totalPaid)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-
-                  {applyStep === 3 && (
-                    <motion.div
-                      key="step-3"
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-3"
-                    >
-                      <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
-                        <h3 className="text-sm font-semibold text-foreground mb-3">Review your application</h3>
-
-                        <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 mb-3">
-                          {selectedAsset && (
-                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                              <selectedAsset.icon className="size-5" />
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{selectedAsset?.label}</p>
-                            <p className="text-[11px] text-muted-foreground">{selectedAsset?.sub}</p>
-                          </div>
-                        </div>
-
-                        <div className="divide-y divide-border">
-                          {[
-                            { label: "Current Balance", value: fmt(applyBalanceNum) },
-                            { label: "Interest Rate", value: `${applyRateNum}%` },
-                            { label: "Term", value: `${applyTerm / 12} years (${applyTerm} mo)` },
-                            { label: "Est. Monthly Payment", value: applyPreview ? fmtCur(applyPreview.payment) : "—", emphasize: true },
-                            { label: "Est. Total Interest", value: applyPreview ? fmt(applyPreview.totalInterest) : "—" },
-                          ].map((r) => (
-                            <div key={r.label} className="flex items-center justify-between py-2.5">
-                              <p className="text-xs text-muted-foreground">{r.label}</p>
-                              <p className={cn("text-xs font-semibold text-foreground", r.emphasize && "text-sm text-primary")}>
-                                {r.value}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2 rounded-xl bg-muted/40 border border-border p-3">
-                        <ShieldCheck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          This is a soft inquiry and will not affect your credit score. Final terms subject to underwriting and verification.
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Navigation */}
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => {
-                      if (applyStep === 1) {
-                        setActiveTab("loans");
-                      } else {
-                        setApplyStep((applyStep - 1) as 1 | 2 | 3);
-                      }
-                    }}
-                    className="flex-1 rounded-xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
-                  >
-                    {applyStep === 1 ? "Cancel" : "Back"}
-                  </button>
-                  <button
-                    disabled={(applyStep === 1 && !canAdvanceStep1) || (applyStep === 2 && !canAdvanceStep2)}
-                    onClick={() => {
-                      if (applyStep < 3) {
-                        setApplyStep((applyStep + 1) as 1 | 2 | 3);
-                      } else {
-                        setApplySubmitted(true);
-                      }
-                    }}
-                    className={cn(
-                      "flex-[1.3] rounded-xl py-3 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
-                      "bg-primary text-primary-foreground hover:opacity-95",
-                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
-                    )}
-                  >
-                    {applyStep === 3 ? (
-                      <>Submit Application <Check className="size-3.5" strokeWidth={3} /></>
-                    ) : (
-                      <>Continue <ArrowRight className="size-3.5" /></>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Add Existing Loan ─────────────────────────────────── */}
-        {activeTab === "add" && (
-          <div className="space-y-4">
-            {addSavedId ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 shadow-sm p-6 text-center"
-              >
-                <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-emerald-500/15 ring-8 ring-emerald-500/5">
-                  <Check className="size-7 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
-                </div>
-                <h2 className="text-base font-bold text-foreground">Loan added</h2>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                  Your {selectedAddAsset?.label.toLowerCase()} from {addLender} is now being tracked.
-                </p>
-
-                <div className="mt-5 flex gap-2">
-                  <button
-                    onClick={() => { resetAddExisting(); setActiveTab("loans"); }}
-                    className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-95 transition-opacity"
-                  >
-                    View Loans
-                  </button>
-                  <button
-                    onClick={() => resetAddExisting()}
-                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
-                  >
-                    Add Another
-                  </button>
-                </div>
-              </motion.div>
-            ) : (
-              <>
-                {/* Hero */}
-                <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-muted/60 via-card to-card shadow-sm p-5">
-                  <div className="absolute -right-8 -top-8 size-32 rounded-full bg-foreground/5 blur-2xl" />
-                  <div className="relative flex items-start gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
-                      <FolderPlus className="size-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-base font-bold text-foreground">Add Existing Loan</h2>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Track a loan you already have — we&apos;ll calculate the monthly payment for you.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Asset type */}
-                <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Asset Type</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">What kind of loan is this?</p>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {assetTypes.map((a) => {
-                      const active = addAssetType === a.id;
-                      return (
-                        <button
-                          key={a.id}
-                          onClick={() => setAddAssetType(a.id)}
-                          className={cn(
-                            "group relative text-left rounded-xl border p-3 transition-all active:scale-[0.98]",
-                            active
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
-                          )}
-                        >
-                          <div className={cn(
-                            "flex size-8 items-center justify-center rounded-lg mb-2 transition-colors",
-                            active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                          )}>
-                            <a.icon className="size-4" />
-                          </div>
-                          <p className="text-xs font-semibold text-foreground leading-tight">{a.label}</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{a.sub}</p>
-                          {active && (
-                            <div className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary">
-                              <Check className="size-2.5 text-primary-foreground" strokeWidth={4} />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Balances */}
-                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Balances</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Current balance is what you still owe.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Current Balance <span className="font-normal text-muted-foreground">(remaining)</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        placeholder="0"
-                        value={addBalance}
-                        onChange={(e) => setAddBalance(e.target.value)}
-                        className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">
-                        Original Amount <span className="font-normal text-muted-foreground">(opt.)</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          placeholder="0"
-                          value={addOriginal}
-                          onChange={(e) => setAddOriginal(e.target.value)}
-                          className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">
-                        Months Paid <span className="font-normal text-muted-foreground">(opt.)</span>
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={addMonthsElapsed}
-                        onChange={(e) => setAddMonthsElapsed(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rate & Term */}
-                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Rate & Term</h3>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">Interest Rate</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step={0.125}
-                        placeholder="0.00"
-                        value={addRate}
-                        onChange={(e) => setAddRate(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 pr-8 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {termOptions.map((t) => (
-                        <button
-                          key={t.months}
-                          onClick={() => setAddTerm(t.months)}
-                          className={cn(
-                            "rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95",
-                            addTerm === t.months
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
-                          )}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lender & Entity */}
-                <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Lender & Entity</h3>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Lender</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Chase Bank"
-                        value={addLender}
-                        onChange={(e) => setAddLender(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1.5">Entity</label>
-                      <select
-                        value={addEntity}
-                        onChange={(e) => setAddEntity(e.target.value)}
-                        className="w-full bg-muted rounded-xl px-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
-                      >
-                        {entityOptions.map((e) => (
-                          <option key={e} value={e}>{e}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Calculated payment */}
-                {addCalculatedPayment > 0 && (
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Info className="size-4 text-primary" />
-                      <div>
-                        <p className="text-[11px] font-semibold text-primary uppercase tracking-wide">Calculated</p>
-                        <p className="text-xs text-muted-foreground">Monthly payment</p>
-                      </div>
-                    </div>
-                    <p className="text-lg font-bold text-primary">{fmtCur(addCalculatedPayment)}</p>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => { resetAddExisting(); setActiveTab("loans"); }}
-                    className="flex-1 rounded-xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={!canSaveExisting}
-                    onClick={saveExistingLoan}
-                    className={cn(
-                      "flex-[1.3] rounded-xl py-3 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
-                      "bg-primary text-primary-foreground hover:opacity-95",
-                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
-                    )}
-                  >
-                    <Check className="size-3.5" strokeWidth={3} /> Save Loan
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* ── Loan Brokerage ─────────────────────────────────────── */}
+        {activeTab === "brokerage" && <BrokerageFlow />}
 
         {/* ── Loan Modeler ──────────────────────────────────────── */}
         {activeTab === "modeler" && (
@@ -1130,7 +431,6 @@ export default function LoansPage() {
               </div>
             </div>
 
-            {/* Comparison cards */}
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: `Scenario A`, rate: modelRate, data: model1, color: "text-primary", bg: "bg-primary/10 dark:bg-primary/20", border: "border-primary/30" },
@@ -1155,7 +455,6 @@ export default function LoansPage() {
               ))}
             </div>
 
-            {/* Savings callout */}
             {model1.payment !== model2.payment && (
               <div className={cn(
                 "rounded-2xl border p-4 flex items-center gap-3",
@@ -1182,7 +481,6 @@ export default function LoansPage() {
         {/* ── Amortization ──────────────────────────────────────── */}
         {activeTab === "schedule" && (
           <div className="space-y-4">
-            {/* Loan selector pills */}
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
               {loans.map((l) => (
                 <button
@@ -1200,7 +498,6 @@ export default function LoansPage() {
               ))}
             </div>
 
-            {/* Chart */}
             <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
               <div className="flex items-center justify-between mb-1">
                 <div>
@@ -1234,7 +531,6 @@ export default function LoansPage() {
               </ResponsiveContainer>
             </div>
 
-            {/* Table */}
             <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h3 className="font-semibold text-foreground text-sm">Payment Schedule</h3>
@@ -1273,5 +569,856 @@ export default function LoansPage() {
 
       </motion.div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Loan Brokerage / Refi Marketplace sub-flow (13 screens)
+// ═══════════════════════════════════════════════════════════════════════════
+
+type StatusTone = "good" | "warn" | "danger" | "muted";
+
+function StatusPill({ children, tone = "muted" }: { children: React.ReactNode; tone?: StatusTone }) {
+  const cls =
+    tone === "good"
+      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+      : tone === "warn"
+      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400"
+      : tone === "danger"
+      ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400"
+      : "bg-muted text-muted-foreground";
+  return (
+    <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap", cls)}>
+      {children}
+    </span>
+  );
+}
+
+function ListRow({
+  title,
+  sub,
+  right,
+  onClick,
+  subTone,
+}: {
+  title: string;
+  sub?: React.ReactNode;
+  right?: React.ReactNode;
+  onClick?: () => void;
+  subTone?: StatusTone;
+}) {
+  const subCls =
+    subTone === "danger"
+      ? "text-red-600 dark:text-red-400"
+      : subTone === "warn"
+      ? "text-amber-600 dark:text-amber-400"
+      : subTone === "good"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-muted-foreground";
+
+  const Content = (
+    <div className="flex items-start justify-between gap-3 py-3 border-t border-border first:border-t-0">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+        {sub && <p className={cn("text-[11px] mt-0.5 leading-snug", subCls)}>{sub}</p>}
+      </div>
+      {right && <div className="shrink-0 flex items-center gap-1.5">{right}</div>}
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} className="w-full text-left hover:bg-muted/30 -mx-4 px-4 transition-colors">
+        {Content}
+      </button>
+    );
+  }
+  return Content;
+}
+
+function SectionCard({
+  label,
+  children,
+  sub,
+}: {
+  label: string;
+  children: React.ReactNode;
+  sub?: string;
+}) {
+  return (
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+      <div className="mb-2">
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{label}</p>
+        {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KpiBox({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: StatusTone }) {
+  const valueCls =
+    tone === "danger" ? "text-red-600 dark:text-red-400" : tone === "good" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground";
+  return (
+    <div className="bg-muted/50 rounded-xl border border-border p-3">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</p>
+      <p className={cn("text-base font-bold mt-1 leading-none", valueCls)}>{value}</p>
+      {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function PillGroup({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const active = o === value;
+        return (
+          <button
+            key={o}
+            onClick={() => onChange(o)}
+            className={cn(
+              "text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all active:scale-95",
+              active
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-muted text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+            )}
+          >
+            {o}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FormField({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">{label}</label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={cn(
+        "w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none ring-1 ring-transparent focus:ring-primary transition-all",
+        props.className
+      )}
+    />
+  );
+}
+
+function PrimaryBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={cn(
+        "w-full rounded-full bg-primary text-primary-foreground py-3 text-sm font-semibold transition-all active:scale-[0.98] hover:opacity-95 flex items-center justify-center gap-1.5",
+        props.disabled && "opacity-40 cursor-not-allowed hover:opacity-40",
+        props.className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SecondaryBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={cn(
+        "w-full rounded-full bg-muted border border-border text-foreground py-2.5 text-sm font-medium hover:bg-accent transition-colors active:scale-[0.98]",
+        props.className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Main orchestrator ───────────────────────────────────────────────────
+function BrokerageFlow() {
+  const [screen, setScreen] = useState<BrokerScreen>("home");
+
+  // Shared deal state across screens
+  const [dealType, setDealType] = useState("Refinance");
+  const [entity, setEntity] = useState("");
+  const [collateral, setCollateral] = useState("");
+  const [amount, setAmount] = useState("");
+  const [useOfProceeds, setUseOfProceeds] = useState("");
+  const [closeDate, setCloseDate] = useState("");
+  const [narrativeHeadline, setNarrativeHeadline] = useState("");
+  const [narrative1, setNarrative1] = useState("");
+  const [narrative2, setNarrative2] = useState("");
+  const [consented, setConsented] = useState(false);
+
+  const headerCfg: Record<BrokerScreen, { chip: string; title: string; subtitle: string; icon: React.ElementType }> = {
+    home: { chip: "Loan brokerage", title: "Loans & refi marketplace", subtitle: "Package commercial deals for lender partners, compare term sheets, and track fees.", icon: Handshake },
+    intake: { chip: "New deal", title: "Create a loan package", subtitle: "Choose the deal type, borrowing entity, collateral, and target structure.", icon: FileText },
+    ownership: { chip: "Borrower", title: "Borrower & ownership tree", subtitle: "Who is borrowing, who owns it, and any parent / holdco structures above it.", icon: UserCircle },
+    sponsors: { chip: "Sponsors", title: "All shareholders & guarantors", subtitle: "All current shareholders / members, plus PFS for guarantors and often for 20%+ owners.", icon: Users },
+    "sponsor-detail": { chip: "Sara · sponsor", title: "Sponsor detail · Sara", subtitle: "PFS, liquidity, and cash flow for commercial guarantor package.", icon: UserCircle },
+    "borrower-package": { chip: "Borrower package", title: "Borrower financial package", subtitle: "Auto-assemble the package your bank partners expect for the borrowing entity.", icon: FolderOpen },
+    collateral: { chip: "Collateral", title: "Property / collateral package", subtitle: "Everything a commercial lender needs on the real estate or operating collateral.", icon: Building2 },
+    projections: { chip: "Projections", title: "Projections & deal story", subtitle: "Build the forward case: NOI, cash flow, DSCR, and the lender narrative.", icon: LineChart },
+    qa: { chip: "Package QA", title: "Is the package lender-ready?", subtitle: "CFOworks scores the package before you send it.", icon: ClipboardCheck },
+    scenario: { chip: "Scenario runner", title: "Run rate & amortization scenarios", subtitle: "Test rates, terms, and amortization structures with schedules.", icon: SlidersHorizontal },
+    "lender-match": { chip: "Lender match", title: "Match this deal to lenders", subtitle: "Share your package with selected lenders once you consent.", icon: Scale },
+    "term-sheets": { chip: "Term sheets", title: "Compare term sheets", subtitle: "Side-by-side lender offers: rate, term, fees, covenants, guaranties.", icon: FileText },
+    closing: { chip: "Closing tracker", title: "Closing tracker · First National Bank", subtitle: "Keep appraisal, title, legal, insurance, and funding organized until close.", icon: Flag },
+  };
+
+  const cfg = headerCfg[screen];
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <button
+          onClick={() => setScreen("home")}
+          disabled={screen === "home"}
+          className={cn(
+            "flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors",
+            screen === "home" && "opacity-0 pointer-events-none"
+          )}
+        >
+          <ChevronLeft className="size-3.5" /> Brokerage home
+        </button>
+        <span className="text-[10px] font-semibold uppercase tracking-widest bg-primary/10 text-primary px-2.5 py-1 rounded-full">
+          {cfg.chip}
+        </span>
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={screen}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18 }}
+          className="space-y-4"
+        >
+          {/* Screen title */}
+          <div className="flex items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <cfg.icon className="size-4" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground leading-tight">{cfg.title}</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{cfg.subtitle}</p>
+            </div>
+          </div>
+
+          {/* ── LB1 Home ───────────────────────────────────── */}
+          {screen === "home" && (
+            <>
+              <SectionCard label="Pipeline snapshot" sub="Across all active commercial deals.">
+                <div className="grid grid-cols-2 gap-2">
+                  <KpiBox label="Open deals" value="9" sub="4 refi · 3 acquisition · 2 LOC" />
+                  <KpiBox label="Term sheets out" value="3" sub="Awaiting borrower response" />
+                  <KpiBox label="Funded YTD" value="$18.6M" sub="6 closed deals" tone="good" />
+                  <KpiBox label="Fee pipeline" value="$224k" sub="Modeled brokerage fees" />
+                </div>
+              </SectionCard>
+
+              <SectionCard label="Workspaces">
+                <ListRow
+                  title="New loan package"
+                  sub="Start refinance, acquisition, bridge, construction, or working capital deal."
+                  right={<span className="text-[11px] text-primary font-semibold">Start →</span>}
+                  onClick={() => setScreen("intake")}
+                />
+                <ListRow
+                  title="Package QA"
+                  sub="See what's missing before sending to lender partners."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                  onClick={() => setScreen("qa")}
+                />
+                <ListRow
+                  title="Lender match"
+                  sub="Match deals to banks, debt funds, credit unions, or SBA lenders."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                  onClick={() => setScreen("lender-match")}
+                />
+                <ListRow
+                  title="Refi scenarios"
+                  sub="Run rate, term, amortization, and break-even what-ifs."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                  onClick={() => setScreen("scenario")}
+                />
+                <ListRow
+                  title="Term sheets"
+                  sub="Compare current lender offers side by side."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                  onClick={() => setScreen("term-sheets")}
+                />
+                <ListRow
+                  title="Closing tracker"
+                  sub="Track active closings through funding."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                  onClick={() => setScreen("closing")}
+                />
+              </SectionCard>
+
+              <div className="rounded-2xl border border-border bg-muted/30 p-3 flex items-start gap-2">
+                <Info className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  CFOworks may receive lender compensation on commercial deals. Borrower disclosure and consent happen before any package is shared.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* ── LB2 Intake ──────────────────────────────────── */}
+          {screen === "intake" && (
+            <>
+              <SectionCard label="Deal type">
+                <PillGroup options={dealTypes} value={dealType} onChange={setDealType} />
+              </SectionCard>
+
+              <SectionCard label="Deal details">
+                <div className="space-y-3">
+                  <FormField label="Borrowing entity">
+                    <TextInput placeholder="e.g. Johnson Realty LLC" value={entity} onChange={(e) => setEntity(e.target.value)} />
+                  </FormField>
+                  <FormField label="Collateral / property" hint="Leave blank for unsecured / company loan">
+                    <TextInput placeholder="Select property" value={collateral} onChange={(e) => setCollateral(e.target.value)} />
+                  </FormField>
+                  <FormField label="Requested amount">
+                    <TextInput placeholder="$ amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  </FormField>
+                  <FormField label="Use of proceeds">
+                    <TextInput placeholder="e.g. Refinance existing debt + fund reserves" value={useOfProceeds} onChange={(e) => setUseOfProceeds(e.target.value)} />
+                  </FormField>
+                  <FormField label="Target close date">
+                    <TextInput placeholder="MM / DD / YYYY" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+                  </FormField>
+                </div>
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("ownership")}>
+                Next: Borrower & ownership <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("home")}>Save draft</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB3 Ownership ───────────────────────────────── */}
+          {screen === "ownership" && (
+            <>
+              <SectionCard label="Borrower structure">
+                <ListRow
+                  title="Johnson Realty LLC"
+                  sub="Borrower · Owns Maplewood Apartments directly."
+                  right={<StatusPill tone="good">Borrower</StatusPill>}
+                />
+                <ListRow
+                  title="BlueLake Holdings LP"
+                  sub="Parent / holdco owner of Johnson Realty LLC."
+                  right={<span className="text-[11px] text-primary font-semibold">Open entity →</span>}
+                />
+                <div className="mt-3 p-3 rounded-xl bg-muted/40 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Why this matters</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    We&apos;ll include the borrowing entity plus any parent / holdco relationship the lender should see.
+                  </p>
+                </div>
+              </SectionCard>
+
+              <SectionCard label="Current ownership">
+                <ListRow
+                  title="You"
+                  sub="52% indirect ownership via BlueLake Holdings LP."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                />
+                <ListRow
+                  title="Sara"
+                  sub="18% indirect ownership."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                />
+                <ListRow
+                  title="Other LPs / shareholders"
+                  sub="All current owners shown from Equity module."
+                  right={<span className="text-[11px] text-primary font-semibold">View all →</span>}
+                />
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("sponsors")}>
+                Next: Shareholders / sponsor package <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("intake")}>Back</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB4 Sponsors ────────────────────────────────── */}
+          {screen === "sponsors" && (
+            <>
+              <SectionCard label="Sponsor roster">
+                <ListRow
+                  title="You"
+                  sub={<>52% owner · Personal guarantor: Yes.<br />PFS complete · Global cash flow complete · Personal taxes 2022–2024 uploaded.</>}
+                  right={<StatusPill tone="good">Ready</StatusPill>}
+                />
+                <ListRow
+                  title="Sara"
+                  sub={<>18% owner · Personal guarantor: Yes. <span className="text-red-600 dark:text-red-400 font-semibold">PFS missing current statement · Cash flow incomplete.</span></>}
+                  right={<span className="text-[11px] text-primary font-semibold">Edit →</span>}
+                  onClick={() => setScreen("sponsor-detail")}
+                />
+                <ListRow
+                  title="BlueLake Holdings LP"
+                  sub="Entity owner · Needs controlling persons attached."
+                  right={<span className="text-[11px] text-primary font-semibold">Open →</span>}
+                />
+                <div className="mt-3 p-3 rounded-xl bg-muted/40 border border-border">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Default rule: show <strong className="text-foreground">all current shareholders</strong>. Lender templates can later filter to guarantors or 20%+ owners only.
+                  </p>
+                </div>
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("sponsor-detail")}>
+                Next: Sponsor detail / PFS <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("ownership")}>Back</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB5 Sponsor PFS ─────────────────────────────── */}
+          {screen === "sponsor-detail" && (
+            <>
+              <SectionCard label="Sponsor summary">
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <KpiBox label="Net worth" value="$6.4M" sub="From Personal CFO" />
+                  <KpiBox label="Liquidity" value="$1.1M" sub="Cash + marketable" />
+                </div>
+                <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Global cash flow</p>
+                  <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">+$18k / month</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">Salary, distributions, debt service, family burn considered.</p>
+                </div>
+              </SectionCard>
+
+              <SectionCard label="Package completeness">
+                <ListRow
+                  title="Personal financial statement"
+                  sub="Last updated 4 months ago."
+                  right={<StatusPill tone="warn">Refresh</StatusPill>}
+                />
+                <ListRow
+                  title="Global cash flow statement"
+                  sub="Draft exists, not finalized."
+                  right={<StatusPill tone="danger">Missing</StatusPill>}
+                />
+                <ListRow
+                  title="Personal tax returns"
+                  sub="2022, 2023, 2024 uploaded to Vault."
+                  right={<StatusPill tone="good">Complete</StatusPill>}
+                />
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("borrower-package")}>
+                Update PFS & cash flow <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("sponsors")}>
+                Pull latest from Personal CFO
+              </SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB6 Borrower Package ────────────────────────── */}
+          {screen === "borrower-package" && (
+            <>
+              <SectionCard label="Required package">
+                <ListRow title="Business tax returns (3 years)" sub="2022, 2023, 2024 federal + state returns from Vault." right={<StatusPill tone="good">Complete</StatusPill>} />
+                <ListRow title="Current year financials" sub="YTD P&L, balance sheet, cash flow, trial balance." right={<StatusPill tone="good">Live</StatusPill>} />
+                <ListRow title="AP / AR aging" sub="Pulled from modules and attached automatically." right={<StatusPill tone="good">Live</StatusPill>} />
+                <ListRow title="Debt schedule" sub="From Loans module, current balance + maturity." right={<StatusPill tone="good">Live</StatusPill>} />
+              </SectionCard>
+
+              <SectionCard label="Preview exports">
+                <ListRow title="YTD financial package" sub="P&L + BS + cash flow + TB." right={<span className="text-[11px] text-primary font-semibold">Preview →</span>} />
+                <ListRow title="Banking liquidity summary" sub="Operating balances, recent statements if lender asks." right={<span className="text-[11px] text-primary font-semibold">Preview →</span>} />
+                <SecondaryBtn className="mt-3">Generate borrower package PDF / ZIP</SecondaryBtn>
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("collateral")}>
+                Next: Collateral package <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("sponsor-detail")}>Back</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB7 Collateral ──────────────────────────────── */}
+          {screen === "collateral" && (
+            <>
+              <SectionCard label="Maplewood Apartments">
+                <ListRow title="Rent roll" sub="Current rent roll + occupancy from AR / Property module." right={<StatusPill tone="good">Ready</StatusPill>} />
+                <ListRow title="T-12 / T-24 operating statements" sub="Pulled from Accounting automatically." right={<StatusPill tone="good">Ready</StatusPill>} />
+                <ListRow title="Property tax history" sub="2025 protest active · 2024 reduction achieved." right={<span className="text-[11px] text-primary font-semibold">Open tax →</span>} />
+                <ListRow title="Insurance summary" sub="COIs + current coverage + renewal dates." right={<span className="text-[11px] text-primary font-semibold">Open insurance →</span>} />
+              </SectionCard>
+
+              <SectionCard label="Optional collateral docs">
+                <ListRow title="Photos / site package" sub="Exterior, units, deferred maintenance, before/after." right={<span className="text-[11px] text-primary font-semibold">Upload →</span>} />
+                <ListRow title="Title / survey / legal" sub="Pulled from Vault if available." right={<span className="text-[11px] text-primary font-semibold">Open Vault →</span>} />
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("projections")}>
+                Next: Projections & narrative <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("borrower-package")}>Back</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB8 Projections ─────────────────────────────── */}
+          {screen === "projections" && (
+            <>
+              <SectionCard label="Forward package">
+                <ListRow title="12-month projection" sub="Base case for NOI, debt service, and DSCR." right={<StatusPill tone="good">Ready</StatusPill>} />
+                <ListRow title="24-month projection" sub="Optional for lenders asking for more runway." right={<span className="text-[11px] text-primary font-semibold">Generate</span>} />
+                <ListRow title="Stress case" sub="Lower occupancy / lower rents / higher rates." right={<span className="text-[11px] text-primary font-semibold">Generate</span>} />
+              </SectionCard>
+
+              <SectionCard label="Deal narrative" sub="AI CFO drafts a lender-ready summary of property, borrower, sponsorship, performance, and credit strength.">
+                <div className="space-y-2">
+                  <TextInput placeholder="Headline: e.g. Stabilized multifamily refi with strong DSCR" value={narrativeHeadline} onChange={(e) => setNarrativeHeadline(e.target.value)} />
+                  <TextInput placeholder="Top narrative point 1" value={narrative1} onChange={(e) => setNarrative1(e.target.value)} />
+                  <TextInput placeholder="Top narrative point 2" value={narrative2} onChange={(e) => setNarrative2(e.target.value)} />
+                </div>
+                <SecondaryBtn className="mt-3">Ask AI CFO to draft narrative</SecondaryBtn>
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("qa")}>
+                Next: Package QA <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("collateral")}>Back</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB9 QA ──────────────────────────────────────── */}
+          {screen === "qa" && (
+            <>
+              <SectionCard label="Completeness score">
+                <div className="grid grid-cols-2 gap-2">
+                  <KpiBox label="Overall package" value="86%" sub="Needs 3 items" />
+                  <KpiBox label="Sponsor package" value="71%" sub="Sara missing updated PFS" tone="danger" />
+                </div>
+              </SectionCard>
+
+              <SectionCard label="Missing / weak items">
+                <ListRow title="Updated PFS – Sara" sub="Last statement older than lender template allows." right={<StatusPill tone="danger">Required</StatusPill>} />
+                <ListRow title="Global cash flow – Sara" sub="Draft exists but not finalized." right={<StatusPill tone="danger">Required</StatusPill>} />
+                <ListRow title="Updated site photos" sub="Helpful, not mandatory for this lender tier." right={<StatusPill tone="warn">Optional</StatusPill>} />
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("scenario")}>
+                Next: Scenario runner & lender match <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("projections")}>Export QA checklist</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB10 Scenario ───────────────────────────────── */}
+          {screen === "scenario" && <ScenarioRunner onNext={() => setScreen("lender-match")} onBack={() => setScreen("qa")} />}
+
+          {/* ── LB11 Lender match ───────────────────────────── */}
+          {screen === "lender-match" && (
+            <>
+              <SectionCard label="Potential lender matches">
+                <ListRow title="First National Bank" sub="Multifamily bridge / perm lender · DSCR and sponsor fit strong." right={<span className="text-[11px] text-primary font-semibold">Send →</span>} />
+                <ListRow title="Lone Star Credit Union" sub="Lower leverage target, but competitive fixed rates." right={<span className="text-[11px] text-primary font-semibold">Send →</span>} />
+                <ListRow title="Summit Debt Fund" sub="Good for quicker close; higher coupon." right={<span className="text-[11px] text-primary font-semibold">Send →</span>} />
+              </SectionCard>
+
+              <SectionCard label="Disclosure & consent">
+                <p className="text-[11px] text-muted-foreground leading-relaxed mb-3">
+                  I authorize CFOworks to share this package with selected lenders and understand that CFOworks may receive referral or brokerage compensation if a loan closes.
+                </p>
+                <button
+                  onClick={() => setConsented((v) => !v)}
+                  className={cn(
+                    "text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all active:scale-95 flex items-center gap-1.5",
+                    consented
+                      ? "bg-primary/10 text-primary border-primary"
+                      : "bg-muted text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {consented && <Check className="size-3" strokeWidth={3} />}
+                  I understand & consent
+                </button>
+                <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-muted/40 border border-border">
+                  <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    This disclosure does not increase your rate or lender fees. Compensation is governed by separate agreements and applicable commercial lending rules.
+                  </p>
+                </div>
+              </SectionCard>
+
+              <PrimaryBtn disabled={!consented} onClick={() => setScreen("term-sheets")}>
+                Send package to selected lenders <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("term-sheets")}>Share with my own lender / broker</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB12 Term sheets ────────────────────────────── */}
+          {screen === "term-sheets" && (
+            <>
+              <SectionCard label="Top offers">
+                <ListRow
+                  title="First National Bank"
+                  sub="4.90% fixed · 10 yrs · 25-yr amort · 0.75 pts · Recourse limited."
+                  right={<StatusPill tone="good">Best fit</StatusPill>}
+                />
+                <ListRow
+                  title="Lone Star Credit Union"
+                  sub="4.82% fixed · 7 yrs · 25-yr amort · 1.10 pts · Full recourse."
+                  right={<span className="text-[11px] text-primary font-semibold">Compare</span>}
+                />
+                <ListRow
+                  title="Summit Debt Fund"
+                  sub="6.10% floating · 3 yrs · IO 12 mo · Fast close."
+                  right={<span className="text-[11px] text-primary font-semibold">Compare</span>}
+                />
+              </SectionCard>
+
+              <PrimaryBtn onClick={() => setScreen("closing")}>
+                Mark chosen lender <ArrowRight className="size-3.5" />
+              </PrimaryBtn>
+              <SecondaryBtn onClick={() => setScreen("lender-match")}>Export comparison memo</SecondaryBtn>
+            </>
+          )}
+
+          {/* ── LB13 Closing ────────────────────────────────── */}
+          {screen === "closing" && (
+            <>
+              <SectionCard label="Checklist">
+                <ListRow title="Appraisal ordered" sub="Expected back May 20." right={<StatusPill tone="good">Done</StatusPill>} />
+                <ListRow title="Title / survey" sub="Vault docs shared to lender counsel." right={<StatusPill tone="good">Done</StatusPill>} />
+                <ListRow title="Insurance certificates" sub="Need lender named as mortgagee / additional insured." right={<StatusPill tone="warn">Pending</StatusPill>} />
+                <ListRow title="Entity resolution / signatures" sub="Borrowing resolution for Johnson Realty LLC." right={<StatusPill tone="warn">Pending</StatusPill>} />
+              </SectionCard>
+
+              <SectionCard label="When funded">
+                <div className="flex items-start gap-2 mb-3">
+                  <AlertTriangle className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-muted-foreground leading-relaxed space-y-1">
+                    <p>On funding, CFOworks should:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      <li>Create / update the live loan in Loans module</li>
+                      <li>Update Banking funding account</li>
+                      <li>Post accounting entries (liability, fees, payoff)</li>
+                      <li>Refresh AI CFO cashflow / refi logic</li>
+                    </ul>
+                  </div>
+                </div>
+                <PrimaryBtn onClick={() => setScreen("home")}>
+                  <Check className="size-3.5" strokeWidth={3} /> Mark loan funded
+                </PrimaryBtn>
+                <SecondaryBtn className="mt-2">Upload closing package</SecondaryBtn>
+              </SectionCard>
+            </>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── LB10 Scenario runner (interactive) ────────────────────────────────
+function ScenarioRunner({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const [balance, setBalance] = useState("8420000");
+  const [currentRate, setCurrentRate] = useState("5.65");
+  const [scenarioRate, setScenarioRate] = useState("4.85");
+  const [remainingYears, setRemainingYears] = useState("9.5");
+  const [amortYears, setAmortYears] = useState("25");
+  const [closingCosts, setClosingCosts] = useState("95000");
+  const [monthlyEscrow, setMonthlyEscrow] = useState("10500");
+  const [view, setView] = useState<"monthly" | "annual">("monthly");
+
+  const [result, setResult] = useState<{
+    current: ReturnType<typeof buildBrokerSchedule>;
+    scenario: ReturnType<typeof buildBrokerSchedule>;
+    annual: ReturnType<typeof aggregateAnnual>;
+    monthlySavings: number;
+    annualSavings: number;
+    breakeven: number;
+  } | null>(null);
+
+  const run = () => {
+    const p = parseFloat(balance) || 0;
+    const cr = parseFloat(currentRate) || 0;
+    const sr = parseFloat(scenarioRate) || 0;
+    const ry = parseFloat(remainingYears) || 0;
+    const ay = parseFloat(amortYears) || 0;
+    const cc = parseFloat(closingCosts) || 0;
+    if (!p || !ry || !ay) return;
+
+    const current = buildBrokerSchedule(p, cr, ay, ry);
+    const scenario = buildBrokerSchedule(p, sr, ay, ry);
+    const monthlySavings = current.payment - scenario.payment;
+    const annualSavings = monthlySavings * 12;
+    const breakeven = monthlySavings > 0 ? cc / monthlySavings : 0;
+
+    setResult({
+      current,
+      scenario,
+      annual: aggregateAnnual(scenario.rows),
+      monthlySavings,
+      annualSavings,
+      breakeven,
+    });
+  };
+
+  useEffect(() => {
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const escrow = parseFloat(monthlyEscrow) || 0;
+
+  return (
+    <>
+      <SectionCard label="Inputs">
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Current balance">
+            <TextInput inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} />
+          </FormField>
+          <FormField label="Current rate (%)">
+            <TextInput inputMode="decimal" value={currentRate} onChange={(e) => setCurrentRate(e.target.value)} />
+          </FormField>
+          <FormField label="Scenario rate (%)">
+            <TextInput inputMode="decimal" value={scenarioRate} onChange={(e) => setScenarioRate(e.target.value)} />
+          </FormField>
+          <FormField label="Remaining term (yrs)">
+            <TextInput inputMode="decimal" value={remainingYears} onChange={(e) => setRemainingYears(e.target.value)} />
+          </FormField>
+          <FormField label="Amortization (yrs)">
+            <TextInput inputMode="decimal" value={amortYears} onChange={(e) => setAmortYears(e.target.value)} />
+          </FormField>
+          <FormField label="Closing costs">
+            <TextInput inputMode="decimal" value={closingCosts} onChange={(e) => setClosingCosts(e.target.value)} />
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Monthly escrow (optional)">
+              <TextInput inputMode="decimal" value={monthlyEscrow} onChange={(e) => setMonthlyEscrow(e.target.value)} />
+            </FormField>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 mt-4">
+          {(["monthly", "annual"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all active:scale-95",
+                view === v
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+              )}
+            >
+              {v === "monthly" ? "Monthly amortization" : "Annual amortization"}
+            </button>
+          ))}
+        </div>
+
+        <PrimaryBtn className="mt-4" onClick={run}>Run scenario</PrimaryBtn>
+      </SectionCard>
+
+      {result && (
+        <>
+          <SectionCard label="Scenario summary">
+            <div className="grid grid-cols-2 gap-2">
+              <KpiBox label="Current P&I" value={fmtCur0(result.current.payment + escrow)} sub="Includes escrow" />
+              <KpiBox label="Scenario P&I" value={fmtCur0(result.scenario.payment + escrow)} sub="Includes escrow" />
+              <KpiBox label="Monthly savings" value={fmtCur0(result.monthlySavings)} sub="Current vs scenario" tone={result.monthlySavings > 0 ? "good" : "danger"} />
+              <KpiBox label="Annual savings" value={fmtCur0(result.annualSavings)} sub="12 × monthly delta" tone={result.annualSavings > 0 ? "good" : "danger"} />
+              <KpiBox label="Break-even" value={result.monthlySavings > 0 ? `${result.breakeven.toFixed(1)} mo` : "—"} sub="Closing / savings" />
+              <KpiBox label="Balloon at maturity" value={fmtCur0(result.scenario.balloon)} sub="End of remaining term" />
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed mt-3">
+              Scenario compares <strong className="text-foreground">{parseFloat(currentRate).toFixed(2)}%</strong> vs <strong className="text-foreground">{parseFloat(scenarioRate).toFixed(2)}%</strong> over <strong className="text-foreground">{parseFloat(remainingYears).toFixed(1)} years</strong> with <strong className="text-foreground">{parseFloat(amortYears).toFixed(1)}-yr amortization</strong>. Payments include escrow of {fmtCur0(escrow)}.
+            </p>
+          </SectionCard>
+
+          <SectionCard label={view === "monthly" ? "Monthly amortization" : "Annual amortization"}>
+            <div className="overflow-x-auto -mx-4">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                    {view === "monthly" ? (
+                      <>
+                        <th className="text-left px-4 py-2 font-semibold">Mo</th>
+                        <th className="text-right px-2 py-2 font-semibold">Payment</th>
+                        <th className="text-right px-2 py-2 font-semibold">Principal</th>
+                        <th className="text-right px-2 py-2 font-semibold">Interest</th>
+                        <th className="text-right px-4 py-2 font-semibold">Balance</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="text-left px-4 py-2 font-semibold">Year</th>
+                        <th className="text-right px-2 py-2 font-semibold">Total Pmts</th>
+                        <th className="text-right px-2 py-2 font-semibold">Principal</th>
+                        <th className="text-right px-2 py-2 font-semibold">Interest</th>
+                        <th className="text-right px-4 py-2 font-semibold">Ending Bal</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {view === "monthly"
+                    ? result.scenario.rows.slice(0, 24).map((r) => (
+                        <tr key={r.month} className="hover:bg-muted/30">
+                          <td className="px-4 py-2 text-muted-foreground">{r.month}</td>
+                          <td className="px-2 py-2 text-right font-medium">{fmtCur(r.payment)}</td>
+                          <td className="px-2 py-2 text-right text-emerald-600 dark:text-emerald-400 font-medium">{fmtCur(r.principal)}</td>
+                          <td className="px-2 py-2 text-right text-destructive">{fmtCur(r.interest)}</td>
+                          <td className="px-4 py-2 text-right font-semibold">{fmtCur(r.balance)}</td>
+                        </tr>
+                      ))
+                    : result.annual.map((r) => (
+                        <tr key={r.year} className="hover:bg-muted/30">
+                          <td className="px-4 py-2 text-muted-foreground">Year {r.year}</td>
+                          <td className="px-2 py-2 text-right font-medium">{fmtCur(r.payment)}</td>
+                          <td className="px-2 py-2 text-right text-emerald-600 dark:text-emerald-400 font-medium">{fmtCur(r.principal)}</td>
+                          <td className="px-2 py-2 text-right text-destructive">{fmtCur(r.interest)}</td>
+                          <td className="px-4 py-2 text-right font-semibold">{fmtCur(r.balance)}</td>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+            {view === "monthly" && (
+              <p className="text-[11px] text-muted-foreground text-center mt-2">
+                Showing first 24 months. Export full schedule in production.
+              </p>
+            )}
+            <SecondaryBtn className="mt-3">Export schedule (CSV / PDF)</SecondaryBtn>
+          </SectionCard>
+        </>
+      )}
+
+      <PrimaryBtn onClick={onNext}>
+        Next: Lender match <ArrowRight className="size-3.5" />
+      </PrimaryBtn>
+      <SecondaryBtn onClick={onBack}>Back</SecondaryBtn>
+    </>
   );
 }
