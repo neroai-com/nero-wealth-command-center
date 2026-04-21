@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import {
   Landmark,
@@ -13,6 +13,15 @@ import {
   ChevronUp,
   Download,
   BarChart2,
+  Plus,
+  FilePlus2,
+  GraduationCap,
+  Briefcase,
+  Check,
+  ArrowRight,
+  Sparkles,
+  Info,
+  ShieldCheck,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -64,7 +73,24 @@ function computeAmortization(principal: number, annualRate: number, termMonths: 
   return { schedule, payment, totalInterest, totalPaid: payment * termMonths };
 }
 
-type TabId = "loans" | "modeler" | "schedule";
+type TabId = "loans" | "modeler" | "schedule" | "apply";
+
+const assetTypes = [
+  { id: "mortgage", label: "Home Mortgage", sub: "Primary or secondary residence", icon: Home, rateHint: 6.5 },
+  { id: "commercial", label: "Commercial RE", sub: "Investment property", icon: Building2, rateHint: 7.25 },
+  { id: "auto", label: "Auto Loan", sub: "New or used vehicle", icon: Car, rateHint: 5.9 },
+  { id: "business", label: "Business Loan", sub: "Working capital / growth", icon: Briefcase, rateHint: 8.5 },
+  { id: "student", label: "Education", sub: "Student or continuing ed", icon: GraduationCap, rateHint: 6.8 },
+  { id: "personal", label: "Personal", sub: "Unsecured personal loan", icon: Landmark, rateHint: 9.5 },
+];
+
+const termOptions = [
+  { months: 60, label: "5 yr" },
+  { months: 120, label: "10 yr" },
+  { months: 180, label: "15 yr" },
+  { months: 240, label: "20 yr" },
+  { months: 360, label: "30 yr" },
+];
 
 export default function LoansPage() {
   const [activeTab, setActiveTab] = useState<TabId>("loans");
@@ -75,6 +101,34 @@ export default function LoansPage() {
   const [modelRate, setModelRate] = useState(6.5);
   const [modelTerm, setModelTerm] = useState(360);
   const [compareRate, setCompareRate] = useState(5.75);
+
+  // Apply flow state
+  const [applyStep, setApplyStep] = useState<1 | 2 | 3>(1);
+  const [applyAssetType, setApplyAssetType] = useState<string | null>(null);
+  const [applyBalance, setApplyBalance] = useState<string>("");
+  const [applyRate, setApplyRate] = useState<string>("");
+  const [applyTerm, setApplyTerm] = useState<number>(360);
+  const [applySubmitted, setApplySubmitted] = useState(false);
+
+  const selectedAsset = assetTypes.find((a) => a.id === applyAssetType) || null;
+  const applyBalanceNum = Number(applyBalance) || 0;
+  const applyRateNum = Number(applyRate) || 0;
+  const applyPreview = useMemo(() => {
+    if (applyBalanceNum <= 0 || applyRateNum <= 0) return null;
+    return computeAmortization(applyBalanceNum, applyRateNum, applyTerm);
+  }, [applyBalanceNum, applyRateNum, applyTerm]);
+
+  const canAdvanceStep1 = !!applyAssetType;
+  const canAdvanceStep2 = applyBalanceNum > 0 && applyRateNum > 0 && applyTerm > 0;
+
+  const resetApply = () => {
+    setApplyStep(1);
+    setApplyAssetType(null);
+    setApplyBalance("");
+    setApplyRate("");
+    setApplyTerm(360);
+    setApplySubmitted(false);
+  };
 
   const model1 = useMemo(() => computeAmortization(modelAmount, modelRate, modelTerm), [modelAmount, modelRate, modelTerm]);
   const model2 = useMemo(() => computeAmortization(modelAmount, compareRate, modelTerm), [modelAmount, compareRate, modelTerm]);
@@ -93,6 +147,7 @@ export default function LoansPage() {
 
   const tabs = [
     { id: "loans" as TabId, label: "Loans", icon: Landmark },
+    { id: "apply" as TabId, label: "Apply", icon: FilePlus2 },
     { id: "modeler" as TabId, label: "Modeler", icon: Calculator },
     { id: "schedule" as TabId, label: "Schedule", icon: BarChart2 },
   ];
@@ -124,13 +179,13 @@ export default function LoansPage() {
       </motion.div>
 
       {/* Pill tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-0.5">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95",
+              "shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95",
               activeTab === tab.id
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-muted text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -147,6 +202,22 @@ export default function LoansPage() {
         {/* ── All Loans ──────────────────────────────────────────── */}
         {activeTab === "loans" && (
           <div className="space-y-3">
+            <button
+              onClick={() => { resetApply(); setActiveTab("apply"); }}
+              className="group relative w-full overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent p-4 text-left transition-all hover:border-primary/60 hover:from-primary/10 hover:to-primary/5 active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                  <Plus className="size-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-foreground">Apply for a New Loan</p>
+                  <p className="text-[11px] text-muted-foreground">Pre-qualify in 3 quick steps · No credit impact</p>
+                </div>
+                <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </button>
+
             {loans.map((loan) => {
               const Icon = loanIcons[loan.type] || Landmark;
               const paidOff = ((loan.originalAmount - loan.balance) / loan.originalAmount) * 100;
@@ -238,6 +309,362 @@ export default function LoansPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ── Apply for New Loan ────────────────────────────────── */}
+        {activeTab === "apply" && (
+          <div className="space-y-4">
+            {applySubmitted ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50 via-card to-card dark:from-emerald-950/30 shadow-sm p-6 text-center"
+              >
+                <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-emerald-500/15 ring-8 ring-emerald-500/5">
+                  <Check className="size-7 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
+                </div>
+                <h2 className="text-base font-bold text-foreground">Application submitted</h2>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                  We've received your {selectedAsset?.label.toLowerCase()} request. Your advisor will reach out within 1 business day.
+                </p>
+
+                <div className="mt-5 grid grid-cols-2 gap-2 text-left">
+                  <div className="rounded-xl bg-muted/60 p-2.5">
+                    <p className="text-[10px] text-muted-foreground">Requested</p>
+                    <p className="text-sm font-bold">{fmt(applyBalanceNum)}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/60 p-2.5">
+                    <p className="text-[10px] text-muted-foreground">Est. Monthly</p>
+                    <p className="text-sm font-bold">{applyPreview ? fmtCur(applyPreview.payment) : "—"}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/60 p-2.5">
+                    <p className="text-[10px] text-muted-foreground">Rate</p>
+                    <p className="text-sm font-bold">{applyRateNum}%</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/60 p-2.5">
+                    <p className="text-[10px] text-muted-foreground">Term</p>
+                    <p className="text-sm font-bold">{applyTerm / 12} yr</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={() => { resetApply(); setActiveTab("loans"); }}
+                    className="flex-1 rounded-xl bg-muted py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
+                  >
+                    Back to Loans
+                  </button>
+                  <button
+                    onClick={resetApply}
+                    className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-95 transition-opacity"
+                  >
+                    Start Another
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                {/* Hero */}
+                <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card shadow-sm p-5">
+                  <div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary/10 blur-2xl" />
+                  <div className="relative flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                      <Sparkles className="size-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-base font-bold text-foreground">Apply for a New Loan</h2>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Tell us what you need — get an indicative rate in under a minute.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stepper */}
+                <div className="flex items-center gap-2 px-0.5">
+                  {[1, 2, 3].map((step, i) => (
+                    <div key={step} className="flex items-center flex-1 last:flex-none">
+                      <div
+                        className={cn(
+                          "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors",
+                          step < applyStep
+                            ? "bg-primary text-primary-foreground"
+                            : step === applyStep
+                            ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {step < applyStep ? <Check className="size-3" strokeWidth={3} /> : step}
+                      </div>
+                      <div className="ml-2 text-[10px] font-semibold text-foreground whitespace-nowrap">
+                        {step === 1 ? "Asset" : step === 2 ? "Details" : "Review"}
+                      </div>
+                      {i < 2 && (
+                        <div
+                          className={cn(
+                            "mx-2 flex-1 h-0.5 rounded-full transition-colors",
+                            step < applyStep ? "bg-primary" : "bg-muted"
+                          )}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Step content */}
+                <AnimatePresence mode="wait">
+                  {applyStep === 1 && (
+                    <motion.div
+                      key="step-1"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-card rounded-2xl border border-border shadow-sm p-4"
+                    >
+                      <div className="mb-3">
+                        <h3 className="text-sm font-semibold text-foreground">What are you borrowing for?</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Choose the asset type below.</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {assetTypes.map((a) => {
+                          const active = applyAssetType === a.id;
+                          return (
+                            <button
+                              key={a.id}
+                              onClick={() => {
+                                setApplyAssetType(a.id);
+                                if (!applyRate) setApplyRate(String(a.rateHint));
+                              }}
+                              className={cn(
+                                "group relative text-left rounded-xl border p-3 transition-all active:scale-[0.98]",
+                                active
+                                  ? "border-primary bg-primary/5 shadow-sm"
+                                  : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
+                              )}
+                            >
+                              <div className={cn(
+                                "flex size-8 items-center justify-center rounded-lg mb-2 transition-colors",
+                                active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                              )}>
+                                <a.icon className="size-4" />
+                              </div>
+                              <p className="text-xs font-semibold text-foreground leading-tight">{a.label}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{a.sub}</p>
+                              {active && (
+                                <div className="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary">
+                                  <Check className="size-2.5 text-primary-foreground" strokeWidth={4} />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {applyStep === 2 && (
+                    <motion.div
+                      key="step-2"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4"
+                    >
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">Loan details</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {selectedAsset?.label} · typical rate {selectedAsset?.rateHint}%
+                        </p>
+                      </div>
+
+                      {/* Current Balance */}
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1.5">
+                          Current Balance
+                          <span className="ml-1 font-normal text-muted-foreground">(amount you need)</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="0"
+                            value={applyBalance}
+                            onChange={(e) => setApplyBalance(e.target.value)}
+                            className="w-full bg-muted rounded-xl pl-7 pr-3 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                          />
+                        </div>
+                        <div className="mt-2 flex gap-1.5 flex-wrap">
+                          {[50000, 100000, 250000, 500000].map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setApplyBalance(String(v))}
+                              className="text-[10px] font-medium px-2 py-1 rounded-full bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {fmt(v)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Rate */}
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1.5">Interest Rate</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step={0.125}
+                            placeholder="0.00"
+                            value={applyRate}
+                            onChange={(e) => setApplyRate(e.target.value)}
+                            className="w-full bg-muted rounded-xl px-3 pr-8 py-3 text-sm font-semibold outline-none ring-1 ring-transparent focus:ring-primary transition-all"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">%</span>
+                        </div>
+                      </div>
+
+                      {/* Term */}
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1.5">Term</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {termOptions.map((t) => (
+                            <button
+                              key={t.months}
+                              onClick={() => setApplyTerm(t.months)}
+                              className={cn(
+                                "rounded-xl py-2.5 text-xs font-semibold transition-all active:scale-95",
+                                applyTerm === t.months
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                              )}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Live preview */}
+                      {applyPreview && (
+                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Info className="size-3 text-primary" />
+                            <p className="text-[10px] font-bold text-primary uppercase tracking-wide">Estimated</p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Monthly</p>
+                              <p className="text-sm font-bold text-foreground">{fmtCur(applyPreview.payment)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Total Interest</p>
+                              <p className="text-sm font-bold text-foreground">{fmt(applyPreview.totalInterest)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Total Paid</p>
+                              <p className="text-sm font-bold text-foreground">{fmt(applyPreview.totalPaid)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {applyStep === 3 && (
+                    <motion.div
+                      key="step-3"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-3"
+                    >
+                      <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+                        <h3 className="text-sm font-semibold text-foreground mb-3">Review your application</h3>
+
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 mb-3">
+                          {selectedAsset && (
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                              <selectedAsset.icon className="size-5" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{selectedAsset?.label}</p>
+                            <p className="text-[11px] text-muted-foreground">{selectedAsset?.sub}</p>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-border">
+                          {[
+                            { label: "Current Balance", value: fmt(applyBalanceNum) },
+                            { label: "Interest Rate", value: `${applyRateNum}%` },
+                            { label: "Term", value: `${applyTerm / 12} years (${applyTerm} mo)` },
+                            { label: "Est. Monthly Payment", value: applyPreview ? fmtCur(applyPreview.payment) : "—", emphasize: true },
+                            { label: "Est. Total Interest", value: applyPreview ? fmt(applyPreview.totalInterest) : "—" },
+                          ].map((r) => (
+                            <div key={r.label} className="flex items-center justify-between py-2.5">
+                              <p className="text-xs text-muted-foreground">{r.label}</p>
+                              <p className={cn("text-xs font-semibold text-foreground", r.emphasize && "text-sm text-primary")}>
+                                {r.value}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 rounded-xl bg-muted/40 border border-border p-3">
+                        <ShieldCheck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          This is a soft inquiry and will not affect your credit score. Final terms subject to underwriting and verification.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Navigation */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      if (applyStep === 1) {
+                        setActiveTab("loans");
+                      } else {
+                        setApplyStep((applyStep - 1) as 1 | 2 | 3);
+                      }
+                    }}
+                    className="flex-1 rounded-xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-accent transition-colors active:scale-[0.98]"
+                  >
+                    {applyStep === 1 ? "Cancel" : "Back"}
+                  </button>
+                  <button
+                    disabled={(applyStep === 1 && !canAdvanceStep1) || (applyStep === 2 && !canAdvanceStep2)}
+                    onClick={() => {
+                      if (applyStep < 3) {
+                        setApplyStep((applyStep + 1) as 1 | 2 | 3);
+                      } else {
+                        setApplySubmitted(true);
+                      }
+                    }}
+                    className={cn(
+                      "flex-[1.3] rounded-xl py-3 text-xs font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5",
+                      "bg-primary text-primary-foreground hover:opacity-95",
+                      "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
+                    )}
+                  >
+                    {applyStep === 3 ? (
+                      <>Submit Application <Check className="size-3.5" strokeWidth={3} /></>
+                    ) : (
+                      <>Continue <ArrowRight className="size-3.5" /></>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
