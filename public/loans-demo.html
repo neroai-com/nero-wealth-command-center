@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clovr · Loans & Lending</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #050505;
+    --card: #0F0F11;
+    --border: #1F1F22;
+    --foreground: #FAFAFA;
+    --muted: #17171A;
+    --muted-foreground: #9CA3AF;
+    --primary: #22C55E;
+    --primary-foreground: #022C22;
+    --accent: #24242A;
+    --destructive: #F87171;
+    --emerald-50: #022c22;
+    --emerald-600: #34D399;
+    --emerald-700: #6EE7B7;
+    --amber-50: #1F1502;
+    --amber-600: #FBBF24;
+    --amber-700: #FCD34D;
+    --red-50: #1F0606;
+    --red-600: #F87171;
+    --red-700: #FCA5A5;
+    --violet-100: #1F1338;
+    --violet-600: #A78BFA;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select { font: inherit; color: inherit; }
+
+  .wrap { max-width: 768px; margin: 0 auto; padding: 20px 16px 80px; }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 16px; font-weight: 700; }
+  h3 { font-size: 13px; font-weight: 600; }
+  p { color: var(--muted-foreground); }
+  .muted { color: var(--muted-foreground); }
+  .foreground { color: var(--foreground); }
+
+  .page-head p { font-size: 12px; margin-top: 2px; }
+
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px;
+  }
+  .summary-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .summary-card .label { font-size: 10px; font-weight: 500; color: var(--muted-foreground); }
+  .summary-card .value { font-size: 16px; font-weight: 700; margin-top: 4px; line-height: 1; }
+
+  .tabs {
+    display: flex; gap: 8px; margin: 20px -16px 0; padding: 2px 16px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-pill {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 9999px; font-size: 12px; font-weight: 600;
+    background: var(--muted); color: var(--muted-foreground);
+    transition: all 0.15s;
+  }
+  .tab-pill:hover { background: var(--accent); color: var(--foreground); }
+  .tab-pill.active {
+    background: var(--primary); color: var(--primary-foreground);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .tab-pill .icon { width: 12px; height: 12px; }
+
+  .content { margin-top: 20px; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .card-title-sm {
+    font-size: 10px; font-weight: 700; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;
+  }
+  .card-sub { font-size: 11px; color: var(--muted-foreground); margin-bottom: 12px; }
+
+  .cta-banner {
+    display: flex; align-items: center; gap: 12px; padding: 16px;
+    border: 1px dashed color-mix(in srgb, var(--primary) 40%, transparent);
+    border-radius: 16px; width: 100%; text-align: left;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 5%, transparent), color-mix(in srgb, var(--primary) 10%, transparent), transparent);
+    transition: all 0.15s;
+  }
+  .cta-banner:hover { border-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+  .cta-banner .cta-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--primary); color: var(--primary-foreground);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .cta-banner .cta-body { flex: 1; min-width: 0; }
+  .cta-banner .cta-body p:first-child { font-size: 13px; font-weight: 600; color: var(--foreground); }
+  .cta-banner .cta-body p:last-child { font-size: 11px; color: var(--muted-foreground); margin-top: 1px; }
+
+  /* Loan cards */
+  .loan-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .loan-head { padding: 16px; }
+  .loan-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .loan-icon {
+    width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .loan-meta { display: flex; align-items: center; gap: 12px; }
+  .loan-meta h3 { font-size: 13px; font-weight: 600; }
+  .loan-meta p { font-size: 11px; margin-top: 1px; }
+  .loan-tag {
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;
+    background: var(--emerald-50); color: var(--emerald-700);
+  }
+  .chevron-btn {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .chevron-btn:hover { background: var(--muted); }
+  .loan-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat {
+    background: var(--muted); border-radius: 12px; padding: 10px;
+  }
+  .stat .label { font-size: 10px; color: var(--muted-foreground); }
+  .stat .value { font-size: 13px; font-weight: 700; margin-top: 2px; }
+  .progress {
+    height: 8px; background: var(--muted); border-radius: 9999px; overflow: hidden;
+  }
+  .progress-fill { height: 100%; background: var(--primary); border-radius: 9999px; }
+  .progress-row {
+    display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--muted-foreground); margin-bottom: 4px;
+  }
+  .loan-expand {
+    border-top: 1px solid var(--border); padding: 16px; background: color-mix(in srgb, var(--muted) 30%, transparent);
+    display: none;
+  }
+  .loan-expand.open { display: block; }
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .mini-stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px;
+  }
+  .mini-stat .label { font-size: 10px; color: var(--muted-foreground); }
+  .mini-stat .value { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .link-btn {
+    font-size: 12px; color: var(--primary); font-weight: 600;
+  }
+
+  /* Brokerage */
+  .broker-head-row {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; color: var(--muted-foreground);
+  }
+  .back-btn:hover { color: var(--foreground); }
+  .chip {
+    font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 9999px;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .screen-title {
+    display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px;
+  }
+  .screen-title .icon-tile {
+    width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .screen-title h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .screen-title p { font-size: 11px; margin-top: 2px; line-height: 1.5; }
+
+  .section-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .section-label {
+    font-size: 10px; font-weight: 700; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .section-sub { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; margin-bottom: 8px; }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  }
+  .kpi-box {
+    background: color-mix(in srgb, var(--muted) 50%, transparent);
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+  }
+  .kpi-label {
+    font-size: 10px; font-weight: 600; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .kpi-value { font-size: 16px; font-weight: 700; margin-top: 4px; line-height: 1; }
+  .kpi-value.good { color: var(--emerald-600); }
+  .kpi-value.danger { color: var(--red-600); }
+  .kpi-sub { font-size: 11px; color: var(--muted-foreground); margin-top: 4px; }
+
+  .list-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; padding: 12px 0; border-top: 1px solid var(--border);
+    text-align: left; width: calc(100% + 32px); margin: 0 -16px; padding-left: 16px; padding-right: 16px;
+    transition: background 0.15s;
+  }
+  button.list-row:hover { background: color-mix(in srgb, var(--muted) 30%, transparent); }
+  .list-row:first-child { border-top: none; }
+  .list-row .left { min-width: 0; flex: 1; }
+  .list-row .title { font-size: 12px; font-weight: 600; color: var(--foreground); }
+  .list-row .sub { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; line-height: 1.45; }
+  .list-row .sub.danger { color: var(--red-600); }
+  .list-row .sub.warn { color: var(--amber-600); }
+  .list-row .sub.good { color: var(--emerald-600); }
+  .list-row .right { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+
+  .status-pill {
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; white-space: nowrap;
+    background: var(--muted); color: var(--muted-foreground);
+  }
+  .status-pill.good { background: var(--emerald-50); color: var(--emerald-700); }
+  .status-pill.warn { background: var(--amber-50); color: var(--amber-700); }
+  .status-pill.danger { background: var(--red-50); color: var(--red-700); }
+  .action-link { font-size: 11px; color: var(--primary); font-weight: 600; }
+
+  .info-block {
+    margin-top: 12px; padding: 12px; border-radius: 12px;
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+    border: 1px solid var(--border);
+  }
+  .info-block .label {
+    font-size: 10px; font-weight: 700; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;
+  }
+  .info-block p { font-size: 11px; line-height: 1.55; }
+  .info-block strong { color: var(--foreground); }
+
+  /* Form */
+  .form-field { display: block; }
+  .form-field + .form-field { margin-top: 12px; }
+  .form-label {
+    display: block; font-size: 10px; font-weight: 700; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;
+  }
+  .form-hint { font-size: 11px; color: var(--muted-foreground); margin-top: 4px; }
+  .text-input, .select-input {
+    width: 100%; padding: 10px 12px; border-radius: 12px;
+    background: var(--muted); border: 1px solid transparent;
+    font-size: 13px; font-weight: 500; color: var(--foreground);
+    outline: none; transition: border-color 0.15s;
+  }
+  .text-input:focus, .select-input:focus { border-color: var(--primary); }
+  .input-prefix {
+    position: relative;
+  }
+  .input-prefix::before {
+    content: "$"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 13px; color: var(--muted-foreground); font-weight: 500;
+  }
+  .input-prefix .text-input { padding-left: 26px; }
+  .input-suffix {
+    position: relative;
+  }
+  .input-suffix::after {
+    content: "%"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 13px; color: var(--muted-foreground); font-weight: 500;
+  }
+  .input-suffix .text-input { padding-right: 26px; }
+
+  .pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill-btn {
+    font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 9999px;
+    border: 1px solid var(--border); background: var(--muted); color: var(--muted-foreground);
+    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pill-btn:hover { background: var(--accent); color: var(--foreground); }
+  .pill-btn.active {
+    background: var(--primary); color: var(--primary-foreground); border-color: var(--primary);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* Buttons */
+  .btn {
+    width: 100%; padding: 12px; border-radius: 9999px;
+    font-size: 13px; font-weight: 600; transition: all 0.15s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn.primary:hover { opacity: 0.92; }
+  .btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.secondary {
+    background: var(--muted); color: var(--foreground); border: 1px solid var(--border);
+  }
+  .btn.secondary:hover { background: var(--accent); }
+
+  /* Modeler */
+  .compare-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .compare-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .compare-card.a { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+  .compare-card.b { border-color: color-mix(in srgb, var(--violet-600) 40%, var(--border)); }
+  .compare-card .label { font-size: 12px; font-weight: 700; }
+  .compare-card .rate { font-size: 11px; margin-bottom: 12px; }
+  .compare-card.a .label, .compare-card.a .rate { color: var(--primary); }
+  .compare-card.b .label, .compare-card.b .rate { color: var(--violet-600); }
+  .compare-card .mini-row {
+    background: color-mix(in srgb, var(--muted) 60%, transparent);
+    border-radius: 12px; padding: 8px; margin-top: 8px;
+  }
+  .compare-card.a .mini-row { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+  .compare-card.b .mini-row { background: var(--violet-100); }
+  .compare-card .mini-row .label { font-size: 10px; color: var(--muted-foreground); font-weight: 500; }
+  .compare-card .mini-row .value { font-size: 12px; font-weight: 700; color: var(--foreground); }
+
+  .savings-callout {
+    display: flex; align-items: center; gap: 12px; padding: 16px;
+    border-radius: 16px; border: 1px solid;
+  }
+  .savings-callout.good { background: var(--emerald-50); border-color: color-mix(in srgb, var(--emerald-600) 30%, transparent); }
+  .savings-callout.good .icon { color: var(--emerald-600); }
+  .savings-callout .title { font-size: 13px; font-weight: 600; color: var(--foreground); }
+  .savings-callout .sub { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+
+  /* Schedule */
+  .selector-pills {
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+    margin: 0 -16px; padding: 0 16px 4px;
+  }
+  .selector-pills::-webkit-scrollbar { display: none; }
+
+  .schedule-chart {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px;
+  }
+  .schedule-chart .top-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .schedule-chart h2 { font-size: 13px; }
+  .schedule-chart .total-interest {
+    text-align: right;
+  }
+  .schedule-chart .total-interest .label { font-size: 10px; color: var(--muted-foreground); }
+  .schedule-chart .total-interest .value { font-size: 13px; font-weight: 700; color: var(--destructive); }
+
+  .chart-svg { width: 100%; height: 160px; }
+
+  .schedule-table-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+  }
+  .schedule-table-head {
+    display: flex; justify-content: space-between; padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .schedule-table-head h3 { font-size: 13px; }
+  .export-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; color: var(--primary); font-weight: 600;
+  }
+  table.sched {
+    width: 100%; font-size: 11px; border-collapse: collapse;
+  }
+  table.sched th, table.sched td {
+    padding: 10px 12px; text-align: left;
+  }
+  table.sched thead { background: color-mix(in srgb, var(--muted) 50%, transparent); }
+  table.sched th {
+    font-size: 10px; font-weight: 600; color: var(--muted-foreground);
+    text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap;
+  }
+  table.sched tbody tr { border-top: 1px solid var(--border); }
+  table.sched tbody tr:hover { background: color-mix(in srgb, var(--muted) 30%, transparent); }
+  table.sched .num { text-align: right; }
+  table.sched .principal { color: var(--emerald-600); font-weight: 500; }
+  table.sched .interest { color: var(--destructive); }
+  table.sched .balance { font-weight: 700; }
+  .table-footer {
+    padding: 12px; text-align: center; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted-foreground);
+  }
+
+  /* Savings callout in scenario */
+  .scen-helper {
+    font-size: 11px; color: var(--muted-foreground);
+    line-height: 1.55; margin-top: 12px;
+  }
+  .scen-helper strong { color: var(--foreground); }
+
+  /* Consent */
+  .consent-banner {
+    display: flex; align-items: flex-start; gap: 8px; padding: 12px;
+    border-radius: 12px; background: color-mix(in srgb, var(--muted) 40%, transparent);
+    border: 1px solid var(--border); margin-top: 12px;
+  }
+  .consent-banner svg { color: var(--emerald-600); flex-shrink: 0; margin-top: 2px; }
+  .consent-banner p { font-size: 11px; line-height: 1.55; }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .tab-content { animation: fadeIn 0.25s ease; }
+
+  /* Share banner */
+  .share-banner {
+    max-width: 768px; margin: 0 auto 12px; padding: 10px 14px;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    border-radius: 12px; font-size: 12px; color: var(--foreground);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .share-banner strong { font-weight: 600; }
+  .share-banner .tag {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 3px 8px; border-radius: 6px; background: var(--primary); color: var(--primary-foreground);
+  }
+</style>
+</head>
+<body>
+
+<div class="share-banner" role="status">
+  <span class="tag">Demo</span>
+  <span><strong>Clovr · Loans & Lending</strong> — Standalone shareable preview. Fully interactive.</span>
+</div>
+
+<div class="wrap">
+  <!-- Page header -->
+  <div class="page-head">
+    <h1>Loans & Lending</h1>
+    <p>Track, model, broker, and optimize across all entities</p>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-grid" id="summary-grid"></div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs"></div>
+
+  <!-- Content -->
+  <div class="content" id="content"></div>
+</div>
+
+<!-- ═══ Icons (lucide inlined) ══════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Stroke style icons -->
+    <symbol id="i-landmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>
+    </symbol>
+    <symbol id="i-calc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></symbol>
+    <symbol id="i-bar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chev-u" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-arrow-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-trend-d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></symbol>
+    <symbol id="i-slider" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  </defs>
+</svg>
+
+<script>
+/* ═════════════════════════════════════════════════════════════════════
+   Clovr Loans — single-file interactive demo
+   ═════════════════════════════════════════════════════════════════════ */
+
+// ── Mock data ────────────────────────────────────────────────────
+const loans = [
+  { id:"loan-1", entity:"Johnson Real Estate LLC", lender:"Chase Bank",
+    type:"Commercial Real Estate", originalAmount:320000, balance:284000,
+    rate:5.25, term:360, monthsElapsed:48, payment:2180 },
+  { id:"loan-2", entity:"Personal", lender:"Chase Mortgage",
+    type:"Primary Mortgage", originalAmount:520000, balance:428000,
+    rate:6.875, term:360, monthsElapsed:24, payment:3420 },
+  { id:"loan-3", entity:"Personal", lender:"Mercedes-Benz Financial",
+    type:"Auto Loan", originalAmount:88000, balance:68400,
+    rate:5.9, term:72, monthsElapsed:18, payment:1285 },
+];
+
+const loanIcons = {
+  "Primary Mortgage":"i-home",
+  "Commercial Real Estate":"i-building",
+  "Auto Loan":"i-car",
+};
+
+const dealTypes = ["Refinance","Acquisition","Cash-out refi","Working capital LOC","Construction / bridge","SBA / owner-occupied"];
+
+// ── Formatters ───────────────────────────────────────────────────
+const fmt = n => n >= 1_000_000 ? `$${(n/1_000_000).toFixed(3)}M`
+              : n >= 1_000 ? `$${(n/1_000).toFixed(1)}K`
+              : `$${n.toLocaleString()}`;
+const fmtCur = n => `$${n.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+const fmtCur0 = n => `$${Math.round(n).toLocaleString("en-US")}`;
+
+// ── Amortization helpers ─────────────────────────────────────────
+function computeAmortization(principal, annualRate, termMonths) {
+  const r = annualRate / 100 / 12;
+  const payment = r === 0
+    ? principal / termMonths
+    : (principal * r * Math.pow(1+r, termMonths)) / (Math.pow(1+r, termMonths) - 1);
+  const schedule = [];
+  let balance = principal;
+  let totalInterest = 0;
+  for (let m = 1; m <= termMonths; m++) {
+    const interestPmt = balance * r;
+    const principalPmt = payment - interestPmt;
+    balance = Math.max(0, balance - principalPmt);
+    totalInterest += interestPmt;
+    if (m % 12 === 0 || m === 1 || m === termMonths) {
+      schedule.push({ month:m, year:Math.ceil(m/12), payment, principal:principalPmt, interest:interestPmt, balance, totalInterest });
+    }
+  }
+  return { schedule, payment, totalInterest, totalPaid: payment * termMonths };
+}
+
+function monthlyPaymentFor(principal, annualRatePct, amortYears) {
+  const r = annualRatePct / 100 / 12;
+  const n = amortYears * 12;
+  if (r === 0) return principal / n;
+  return principal * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+}
+
+function buildBrokerSchedule(principal, annualRatePct, amortYears, remainingYears) {
+  const r = annualRatePct / 100 / 12;
+  const totalAmortMonths = Math.round(amortYears * 12);
+  const horizonMonths = Math.round(remainingYears * 12);
+  const payment = monthlyPaymentFor(principal, annualRatePct, amortYears);
+  let bal = principal;
+  const rows = [];
+  let totalInt = 0;
+  for (let m = 1; m <= horizonMonths; m++) {
+    const interest = r === 0 ? 0 : bal * r;
+    let principalPaid = payment - interest;
+    if (m > totalAmortMonths) principalPaid = 0;
+    if (principalPaid > bal) principalPaid = bal;
+    bal -= principalPaid;
+    totalInt += interest;
+    rows.push({ month:m, payment, interest, principal:principalPaid, balance: bal < 0 ? 0 : bal });
+    if (bal <= 0.01) break;
+  }
+  return { payment, rows, totalInterest: totalInt, balloon: bal < 0 ? 0 : bal };
+}
+
+function aggregateAnnual(rows) {
+  const out = [];
+  for (let i = 0; i < rows.length; i += 12) {
+    const chunk = rows.slice(i, i + 12);
+    if (!chunk.length) continue;
+    out.push({
+      year: Math.floor(i/12) + 1,
+      payment: chunk.reduce((a,r)=>a+r.payment,0),
+      interest: chunk.reduce((a,r)=>a+r.interest,0),
+      principal: chunk.reduce((a,r)=>a+r.principal,0),
+      balance: chunk[chunk.length-1].balance,
+    });
+  }
+  return out;
+}
+
+// ── State ────────────────────────────────────────────────────────
+const state = {
+  activeTab: "loans",
+  expandedLoan: null,
+  selectedLoanId: "loan-2",
+
+  // Modeler
+  modelAmount: 400000,
+  modelRate: 6.5,
+  modelTerm: 360,
+  compareRate: 5.75,
+
+  // Brokerage
+  brokerScreen: "home",
+  dealType: "Refinance",
+  consented: false,
+
+  // Scenario runner
+  scen: {
+    balance: "8420000",
+    currentRate: "5.65",
+    scenarioRate: "4.85",
+    remainingYears: "9.5",
+    amortYears: "25",
+    closingCosts: "95000",
+    monthlyEscrow: "10500",
+    view: "monthly",
+  },
+};
+
+// ── DOM helpers ─────────────────────────────────────────────────
+const $ = sel => document.querySelector(sel);
+const icon = (id, cls="") => `<svg class="icon ${cls}" width="14" height="14" aria-hidden="true"><use href="#${id}"/></svg>`;
+const iconSize = (id, size, cls="") => `<svg class="${cls}" width="${size}" height="${size}" aria-hidden="true"><use href="#${id}"/></svg>`;
+
+// ── Render: Summary ─────────────────────────────────────────────
+function renderSummary() {
+  const totalLoans = loans.reduce((a,l) => a + l.balance, 0);
+  const totalPayments = loans.reduce((a,l) => a + l.payment, 0);
+  const cards = [
+    { label:"Total Balance", value: fmt(totalLoans) },
+    { label:"Monthly Pmts", value: `$${totalPayments.toLocaleString()}` },
+    { label:"Active Loans", value: String(loans.length) },
+  ];
+  $("#summary-grid").innerHTML = cards.map(c => `
+    <div class="summary-card">
+      <p class="label">${c.label}</p>
+      <p class="value">${c.value}</p>
+    </div>
+  `).join("");
+}
+
+// ── Render: Tabs ────────────────────────────────────────────────
+function renderTabs() {
+  const tabs = [
+    { id:"loans", label:"Loans", icon:"i-landmark" },
+    { id:"brokerage", label:"Brokerage", icon:"i-hand" },
+    { id:"modeler", label:"Modeler", icon:"i-calc" },
+    { id:"schedule", label:"Schedule", icon:"i-bar" },
+  ];
+  $("#tabs").innerHTML = tabs.map(t => `
+    <button class="tab-pill ${state.activeTab === t.id ? "active":""}" data-tab="${t.id}">
+      ${icon(t.icon)}${t.label}
+    </button>
+  `).join("");
+  document.querySelectorAll(".tab-pill").forEach(b => {
+    b.addEventListener("click", () => {
+      state.activeTab = b.dataset.tab;
+      renderAll();
+    });
+  });
+}
+
+// ── Render: Content ─────────────────────────────────────────────
+function renderContent() {
+  const c = $("#content");
+  c.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "tab-content stack";
+  c.appendChild(wrap);
+
+  if (state.activeTab === "loans") renderLoansTab(wrap);
+  if (state.activeTab === "brokerage") renderBrokerage(wrap);
+  if (state.activeTab === "modeler") renderModeler(wrap);
+  if (state.activeTab === "schedule") renderSchedule(wrap);
+}
+
+function renderAll() {
+  renderTabs();
+  renderContent();
+}
+
+// ── Tab: Loans ──────────────────────────────────────────────────
+function renderLoansTab(wrap) {
+  // CTA
+  const cta = document.createElement("button");
+  cta.className = "cta-banner";
+  cta.innerHTML = `
+    <div class="cta-icon">${iconSize("i-hand", 20)}</div>
+    <div class="cta-body">
+      <p>Loan Brokerage & Refi Marketplace</p>
+      <p>Package, match, and close commercial deals</p>
+    </div>
+    ${iconSize("i-arrow-r", 16)}
+  `;
+  cta.addEventListener("click", () => {
+    state.activeTab = "brokerage";
+    state.brokerScreen = "home";
+    renderAll();
+  });
+  wrap.appendChild(cta);
+
+  loans.forEach(loan => {
+    const iconId = loanIcons[loan.type] || "i-landmark";
+    const paidOff = ((loan.originalAmount - loan.balance) / loan.originalAmount) * 100;
+    const remainingMonths = loan.term - loan.monthsElapsed;
+    const amort = computeAmortization(loan.originalAmount, loan.rate, loan.term);
+    const interestRemaining = amort.totalInterest * (remainingMonths / loan.term);
+    const expanded = state.expandedLoan === loan.id;
+
+    const card = document.createElement("div");
+    card.className = "loan-card";
+    card.innerHTML = `
+      <div class="loan-head">
+        <div class="loan-top">
+          <div class="loan-meta">
+            <div class="loan-icon">${iconSize(iconId, 16)}</div>
+            <div>
+              <h3>${loan.type}</h3>
+              <p>${loan.entity} · ${loan.lender}</p>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span class="loan-tag">Current</span>
+            <button class="chevron-btn" data-toggle="${loan.id}">
+              ${iconSize(expanded ? "i-chev-u" : "i-chev-d", 14)}
+            </button>
+          </div>
+        </div>
+        <div class="loan-stats">
+          <div class="stat"><p class="label">Balance</p><p class="value">${fmt(loan.balance)}</p></div>
+          <div class="stat"><p class="label">Rate</p><p class="value">${loan.rate}%</p></div>
+          <div class="stat"><p class="label">Payment</p><p class="value">${fmt(loan.payment)}/mo</p></div>
+          <div class="stat"><p class="label">Remaining</p><p class="value">${remainingMonths} mo</p></div>
+        </div>
+        <div>
+          <div class="progress-row"><span>Paid off</span><span>${paidOff.toFixed(1)}%</span></div>
+          <div class="progress"><div class="progress-fill" style="width:${paidOff}%"></div></div>
+          <p style="font-size:10px; color:var(--muted-foreground); margin-top:4px;">~${fmt(interestRemaining)} interest remaining</p>
+        </div>
+      </div>
+      <div class="loan-expand ${expanded ? "open":""}">
+        <div class="mini-grid">
+          <div class="mini-stat"><p class="label">Original</p><p class="value">${fmt(loan.originalAmount)}</p></div>
+          <div class="mini-stat"><p class="label">Total Paid</p><p class="value">${fmt(loan.monthsElapsed * loan.payment)}</p></div>
+          <div class="mini-stat"><p class="label">Total Interest</p><p class="value">${fmt(amort.totalInterest)}</p></div>
+        </div>
+        <button class="link-btn" data-schedule="${loan.id}">View Amortization Schedule →</button>
+      </div>
+    `;
+    card.querySelector("[data-toggle]").addEventListener("click", () => {
+      state.expandedLoan = expanded ? null : loan.id;
+      renderContent();
+    });
+    const schedBtn = card.querySelector("[data-schedule]");
+    if (schedBtn) schedBtn.addEventListener("click", () => {
+      state.selectedLoanId = loan.id;
+      state.activeTab = "schedule";
+      renderAll();
+    });
+    wrap.appendChild(card);
+  });
+}
+
+// ═══ Tab: Brokerage ═══════════════════════════════════════════════
+const brokerCfg = {
+  home: { chip:"Loan brokerage", icon:"i-hand", title:"Loans & refi marketplace", sub:"Package commercial deals for lender partners, compare term sheets, and track fees." },
+  intake: { chip:"New deal", icon:"i-file", title:"Create a loan package", sub:"Choose the deal type, borrowing entity, collateral, and target structure." },
+  ownership: { chip:"Borrower", icon:"i-user", title:"Borrower & ownership tree", sub:"Who is borrowing, who owns it, and any parent / holdco structures above it." },
+  sponsors: { chip:"Sponsors", icon:"i-users", title:"All shareholders & guarantors", sub:"All current shareholders / members, plus PFS for guarantors and often for 20%+ owners." },
+  "sponsor-detail": { chip:"Sara · sponsor", icon:"i-user", title:"Sponsor detail · Sara", sub:"PFS, liquidity, and cash flow for commercial guarantor package." },
+  "borrower-package": { chip:"Borrower package", icon:"i-folder", title:"Borrower financial package", sub:"Auto-assemble the package your bank partners expect for the borrowing entity." },
+  collateral: { chip:"Collateral", icon:"i-building", title:"Property / collateral package", sub:"Everything a commercial lender needs on the real estate or operating collateral." },
+  projections: { chip:"Projections", icon:"i-line", title:"Projections & deal story", sub:"Build the forward case: NOI, cash flow, DSCR, and the lender narrative." },
+  qa: { chip:"Package QA", icon:"i-clip", title:"Is the package lender-ready?", sub:"CFOworks scores the package before you send it." },
+  scenario: { chip:"Scenario runner", icon:"i-slider", title:"Run rate & amortization scenarios", sub:"Test rates, terms, and amortization structures with schedules." },
+  "lender-match": { chip:"Lender match", icon:"i-scale", title:"Match this deal to lenders", sub:"Share your package with selected lenders once you consent." },
+  "term-sheets": { chip:"Term sheets", icon:"i-file", title:"Compare term sheets", sub:"Side-by-side lender offers: rate, term, fees, covenants, guaranties." },
+  closing: { chip:"Closing tracker", icon:"i-flag", title:"Closing tracker · First National Bank", sub:"Keep appraisal, title, legal, insurance, and funding organized until close." },
+};
+
+function renderBrokerage(wrap) {
+  const cfg = brokerCfg[state.brokerScreen];
+
+  // Header row (back + chip)
+  const head = document.createElement("div");
+  head.className = "broker-head-row";
+  head.innerHTML = `
+    <button class="back-btn" ${state.brokerScreen === "home" ? "style='visibility:hidden'" : ""}>
+      ${iconSize("i-chev-l", 14)} Brokerage home
+    </button>
+    <span class="chip">${cfg.chip}</span>
+  `;
+  head.querySelector(".back-btn").addEventListener("click", () => {
+    state.brokerScreen = "home";
+    renderContent();
+  });
+  wrap.appendChild(head);
+
+  // Screen title
+  const st = document.createElement("div");
+  st.className = "screen-title";
+  st.innerHTML = `
+    <div class="icon-tile">${iconSize(cfg.icon, 16)}</div>
+    <div>
+      <h2>${cfg.title}</h2>
+      <p>${cfg.sub}</p>
+    </div>
+  `;
+  wrap.appendChild(st);
+
+  const screen = state.brokerScreen;
+  if (screen === "home") renderBrokerHome(wrap);
+  else if (screen === "intake") renderBrokerIntake(wrap);
+  else if (screen === "ownership") renderBrokerOwnership(wrap);
+  else if (screen === "sponsors") renderBrokerSponsors(wrap);
+  else if (screen === "sponsor-detail") renderBrokerSponsorDetail(wrap);
+  else if (screen === "borrower-package") renderBrokerBorrowerPackage(wrap);
+  else if (screen === "collateral") renderBrokerCollateral(wrap);
+  else if (screen === "projections") renderBrokerProjections(wrap);
+  else if (screen === "qa") renderBrokerQA(wrap);
+  else if (screen === "scenario") renderBrokerScenario(wrap);
+  else if (screen === "lender-match") renderBrokerLenderMatch(wrap);
+  else if (screen === "term-sheets") renderBrokerTermSheets(wrap);
+  else if (screen === "closing") renderBrokerClosing(wrap);
+}
+
+// Reusable markup helpers
+function sectionCard(label, sub, inner) {
+  return `
+    <div class="section-card">
+      <div class="section-label">${label}</div>
+      ${sub ? `<p class="section-sub">${sub}</p>` : ""}
+      ${inner}
+    </div>
+  `;
+}
+
+function kpiBox(label, value, sub, tone) {
+  const toneCls = tone ? ` ${tone}` : "";
+  return `
+    <div class="kpi-box">
+      <p class="kpi-label">${label}</p>
+      <p class="kpi-value${toneCls}">${value}</p>
+      ${sub ? `<p class="kpi-sub">${sub}</p>` : ""}
+    </div>
+  `;
+}
+
+function listRow({ title, sub, subTone, right, clickable }) {
+  const Tag = clickable ? "button" : "div";
+  const subCls = subTone ? ` ${subTone}` : "";
+  return `
+    <${Tag} class="list-row" ${clickable ? `data-action="${clickable}"` : ""}>
+      <div class="left">
+        <p class="title">${title}</p>
+        ${sub ? `<p class="sub${subCls}">${sub}</p>` : ""}
+      </div>
+      ${right ? `<div class="right">${right}</div>` : ""}
+    </${Tag}>
+  `;
+}
+
+function statusPill(text, tone) {
+  return `<span class="status-pill ${tone || ""}">${text}</span>`;
+}
+
+function primaryBtn(label, action, iconId) {
+  return `<button class="btn primary" data-action="${action}">${label}${iconId ? iconSize(iconId, 14) : ""}</button>`;
+}
+function secondaryBtn(label, action) {
+  return `<button class="btn secondary" data-action="${action}">${label}</button>`;
+}
+
+function wireActions(wrap, map) {
+  wrap.querySelectorAll("[data-action]").forEach(el => {
+    el.addEventListener("click", () => {
+      const fn = map[el.dataset.action];
+      if (fn) fn();
+    });
+  });
+}
+
+function goto(screen) {
+  state.brokerScreen = screen;
+  renderContent();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ─── LB1 Home ─────────────────────────────────────────────────────
+function renderBrokerHome(wrap) {
+  const section1 = sectionCard("Pipeline snapshot", "Across all active commercial deals.", `
+    <div class="kpi-grid">
+      ${kpiBox("Open deals","9","4 refi · 3 acquisition · 2 LOC")}
+      ${kpiBox("Term sheets out","3","Awaiting borrower response")}
+      ${kpiBox("Funded YTD","$18.6M","6 closed deals","good")}
+      ${kpiBox("Fee pipeline","$224k","Modeled brokerage fees")}
+    </div>
+  `);
+  const rows = [
+    ["intake","New loan package","Start refinance, acquisition, bridge, construction, or working capital deal."],
+    ["qa","Package QA","See what's missing before sending to lender partners."],
+    ["lender-match","Lender match","Match deals to banks, debt funds, credit unions, or SBA lenders."],
+    ["scenario","Refi scenarios","Run rate, term, amortization, and break-even what-ifs."],
+    ["term-sheets","Term sheets","Compare current lender offers side by side."],
+    ["closing","Closing tracker","Track active closings through funding."],
+  ].map(([target, title, sub]) =>
+    listRow({ title, sub, right: `<span class="action-link">${target === "intake" ? "Start →" : "Open →"}</span>`, clickable:`go-${target}` })
+  ).join("");
+
+  const section2 = sectionCard("Workspaces", null, rows);
+  const disclosure = `
+    <div class="info-block" style="margin-top:0">
+      <p>CFOworks may receive lender compensation on commercial deals. Borrower disclosure and consent happen before any package is shared.</p>
+    </div>
+  `;
+  const html = section1 + section2 + disclosure;
+  const container = document.createElement("div");
+  container.className = "stack";
+  container.innerHTML = html;
+  wrap.appendChild(container);
+
+  wireActions(container, Object.fromEntries([
+    ["go-intake", () => goto("intake")],
+    ["go-qa", () => goto("qa")],
+    ["go-lender-match", () => goto("lender-match")],
+    ["go-scenario", () => goto("scenario")],
+    ["go-term-sheets", () => goto("term-sheets")],
+    ["go-closing", () => goto("closing")],
+  ]));
+}
+
+// ─── LB2 Intake ───────────────────────────────────────────────────
+function renderBrokerIntake(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+
+  // Deal type
+  const dealTypesHtml = `
+    <div class="pill-group">
+      ${dealTypes.map(t => `<button class="pill-btn ${state.dealType===t?'active':''}" data-action="set-${t}">${t}</button>`).join("")}
+    </div>
+  `;
+  container.innerHTML = sectionCard("Deal type", null, dealTypesHtml)
+    + sectionCard("Deal details", null, `
+        <div class="form-field"><label class="form-label">Borrowing entity</label><input class="text-input" placeholder="e.g. Johnson Realty LLC"/></div>
+        <div class="form-field"><label class="form-label">Collateral / property</label><input class="text-input" placeholder="Select property"/><p class="form-hint">Leave blank for unsecured / company loan</p></div>
+        <div class="form-field"><label class="form-label">Requested amount</label><div class="input-prefix"><input class="text-input" inputmode="decimal" placeholder="0"/></div></div>
+        <div class="form-field"><label class="form-label">Use of proceeds</label><input class="text-input" placeholder="e.g. Refinance existing debt + fund reserves"/></div>
+        <div class="form-field"><label class="form-label">Target close date</label><input class="text-input" placeholder="MM / DD / YYYY"/></div>
+      `)
+    + primaryBtn(`Next: Borrower & ownership${iconSize("i-arrow-r",14)}`, "next")
+    + secondaryBtn("Save draft", "back");
+  wrap.appendChild(container);
+
+  const actions = { next: () => goto("ownership"), back: () => goto("home") };
+  dealTypes.forEach(t => { actions[`set-${t}`] = () => { state.dealType = t; renderContent(); }; });
+  wireActions(container, actions);
+}
+
+// ─── LB3 Ownership ────────────────────────────────────────────────
+function renderBrokerOwnership(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const borrowerRows = listRow({
+    title:"Johnson Realty LLC",
+    sub:"Borrower · Owns Maplewood Apartments directly.",
+    right: statusPill("Borrower","good")
+  }) + listRow({
+    title:"BlueLake Holdings LP",
+    sub:"Parent / holdco owner of Johnson Realty LLC.",
+    right: `<span class="action-link">Open entity →</span>`
+  });
+  const ownersRows = listRow({ title:"You", sub:"52% indirect ownership via BlueLake Holdings LP.", right:`<span class="action-link">Open →</span>` })
+    + listRow({ title:"Sara", sub:"18% indirect ownership.", right:`<span class="action-link">Open →</span>` })
+    + listRow({ title:"Other LPs / shareholders", sub:"All current owners shown from Equity module.", right:`<span class="action-link">View all →</span>` });
+
+  container.innerHTML = sectionCard("Borrower structure", null, borrowerRows + `
+      <div class="info-block">
+        <div class="label">Why this matters</div>
+        <p>We'll include the borrowing entity plus any parent / holdco relationship the lender should see.</p>
+      </div>
+    `)
+    + sectionCard("Current ownership", null, ownersRows)
+    + primaryBtn(`Next: Shareholders / sponsor package${iconSize("i-arrow-r",14)}`, "next")
+    + secondaryBtn("Back","back");
+
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("sponsors"), back: () => goto("intake") });
+}
+
+// ─── LB4 Sponsors ─────────────────────────────────────────────────
+function renderBrokerSponsors(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const rows = listRow({
+    title:"You",
+    sub:`52% owner · Personal guarantor: Yes.<br/>PFS complete · Global cash flow complete · Personal taxes 2022–2024 uploaded.`,
+    right: statusPill("Ready","good")
+  }) + listRow({
+    title:"Sara",
+    sub:`18% owner · Personal guarantor: Yes. <strong style="color:var(--red-600)">PFS missing current statement · Cash flow incomplete.</strong>`,
+    right: `<span class="action-link">Edit →</span>`,
+    clickable: "open-sara"
+  }) + listRow({
+    title:"BlueLake Holdings LP",
+    sub:"Entity owner · Needs controlling persons attached.",
+    right: `<span class="action-link">Open →</span>`
+  });
+
+  container.innerHTML = sectionCard("Sponsor roster", null, rows + `
+      <div class="info-block">
+        <p>Default rule: show <strong>all current shareholders</strong>. Lender templates can later filter to guarantors or 20%+ owners only.</p>
+      </div>
+    `)
+    + primaryBtn(`Next: Sponsor detail / PFS${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Back","back");
+
+  wrap.appendChild(container);
+  wireActions(container, {
+    next: () => goto("sponsor-detail"),
+    back: () => goto("ownership"),
+    "open-sara": () => goto("sponsor-detail"),
+  });
+}
+
+// ─── LB5 Sponsor detail ───────────────────────────────────────────
+function renderBrokerSponsorDetail(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+
+  const summary = sectionCard("Sponsor summary", null, `
+    <div class="kpi-grid">
+      ${kpiBox("Net worth","$6.4M","From Personal CFO")}
+      ${kpiBox("Liquidity","$1.1M","Cash + marketable")}
+    </div>
+    <div class="info-block">
+      <div class="label">Global cash flow</div>
+      <p style="color:var(--emerald-600); font-weight:700; font-size:15px">+$18k / month</p>
+      <p style="margin-top:4px">Salary, distributions, debt service, family burn considered.</p>
+    </div>
+  `);
+
+  const completeness = sectionCard("Package completeness", null, `
+    ${listRow({ title:"Personal financial statement", sub:"Last updated 4 months ago.", right: statusPill("Refresh","warn") })}
+    ${listRow({ title:"Global cash flow statement", sub:"Draft exists, not finalized.", right: statusPill("Missing","danger") })}
+    ${listRow({ title:"Personal tax returns", sub:"2022, 2023, 2024 uploaded to Vault.", right: statusPill("Complete","good") })}
+  `);
+
+  container.innerHTML = summary + completeness
+    + primaryBtn(`Update PFS & cash flow${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Pull latest from Personal CFO","back");
+
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("borrower-package"), back: () => goto("sponsors") });
+}
+
+// ─── LB6 Borrower package ─────────────────────────────────────────
+function renderBrokerBorrowerPackage(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const req = sectionCard("Required package", null,
+    listRow({ title:"Business tax returns (3 years)", sub:"2022, 2023, 2024 federal + state returns from Vault.", right: statusPill("Complete","good") })
+    + listRow({ title:"Current year financials", sub:"YTD P&L, balance sheet, cash flow, trial balance.", right: statusPill("Live","good") })
+    + listRow({ title:"AP / AR aging", sub:"Pulled from modules and attached automatically.", right: statusPill("Live","good") })
+    + listRow({ title:"Debt schedule", sub:"From Loans module, current balance + maturity.", right: statusPill("Live","good") })
+  );
+  const preview = sectionCard("Preview exports", null,
+    listRow({ title:"YTD financial package", sub:"P&L + BS + cash flow + TB.", right: `<span class="action-link">Preview →</span>` })
+    + listRow({ title:"Banking liquidity summary", sub:"Operating balances, recent statements if lender asks.", right: `<span class="action-link">Preview →</span>` })
+    + `<button class="btn secondary" style="margin-top:12px">Generate borrower package PDF / ZIP</button>`
+  );
+  container.innerHTML = req + preview
+    + primaryBtn(`Next: Collateral package${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Back","back");
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("collateral"), back: () => goto("sponsor-detail") });
+}
+
+// ─── LB7 Collateral ───────────────────────────────────────────────
+function renderBrokerCollateral(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  container.innerHTML =
+    sectionCard("Maplewood Apartments", null,
+      listRow({ title:"Rent roll", sub:"Current rent roll + occupancy from AR / Property module.", right: statusPill("Ready","good") })
+      + listRow({ title:"T-12 / T-24 operating statements", sub:"Pulled from Accounting automatically.", right: statusPill("Ready","good") })
+      + listRow({ title:"Property tax history", sub:"2025 protest active · 2024 reduction achieved.", right: `<span class="action-link">Open tax →</span>` })
+      + listRow({ title:"Insurance summary", sub:"COIs + current coverage + renewal dates.", right: `<span class="action-link">Open insurance →</span>` })
+    )
+    + sectionCard("Optional collateral docs", null,
+      listRow({ title:"Photos / site package", sub:"Exterior, units, deferred maintenance, before/after.", right: `<span class="action-link">Upload →</span>` })
+      + listRow({ title:"Title / survey / legal", sub:"Pulled from Vault if available.", right: `<span class="action-link">Open Vault →</span>` })
+    )
+    + primaryBtn(`Next: Projections & narrative${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Back","back");
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("projections"), back: () => goto("borrower-package") });
+}
+
+// ─── LB8 Projections ──────────────────────────────────────────────
+function renderBrokerProjections(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  container.innerHTML =
+    sectionCard("Forward package", null,
+      listRow({ title:"12-month projection", sub:"Base case for NOI, debt service, and DSCR.", right: statusPill("Ready","good") })
+      + listRow({ title:"24-month projection", sub:"Optional for lenders asking for more runway.", right: `<span class="action-link">Generate</span>` })
+      + listRow({ title:"Stress case", sub:"Lower occupancy / lower rents / higher rates.", right: `<span class="action-link">Generate</span>` })
+    )
+    + sectionCard("Deal narrative", "AI CFO drafts a lender-ready summary of property, borrower, sponsorship, performance, and credit strength.", `
+        <div class="form-field"><input class="text-input" placeholder="Headline: e.g. Stabilized multifamily refi with strong DSCR"/></div>
+        <div class="form-field"><input class="text-input" placeholder="Top narrative point 1"/></div>
+        <div class="form-field"><input class="text-input" placeholder="Top narrative point 2"/></div>
+        <button class="btn secondary" style="margin-top:12px">Ask AI CFO to draft narrative</button>
+      `)
+    + primaryBtn(`Next: Package QA${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Back","back");
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("qa"), back: () => goto("collateral") });
+}
+
+// ─── LB9 QA ───────────────────────────────────────────────────────
+function renderBrokerQA(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  container.innerHTML =
+    sectionCard("Completeness score", null, `
+      <div class="kpi-grid">
+        ${kpiBox("Overall package","86%","Needs 3 items")}
+        ${kpiBox("Sponsor package","71%","Sara missing updated PFS","danger")}
+      </div>
+    `)
+    + sectionCard("Missing / weak items", null,
+      listRow({ title:"Updated PFS – Sara", sub:"Last statement older than lender template allows.", right: statusPill("Required","danger") })
+      + listRow({ title:"Global cash flow – Sara", sub:"Draft exists but not finalized.", right: statusPill("Required","danger") })
+      + listRow({ title:"Updated site photos", sub:"Helpful, not mandatory for this lender tier.", right: statusPill("Optional","warn") })
+    )
+    + primaryBtn(`Next: Scenario runner & lender match${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Export QA checklist","back");
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("scenario"), back: () => goto("projections") });
+}
+
+// ─── LB10 Scenario runner ─────────────────────────────────────────
+function renderBrokerScenario(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const s = state.scen;
+
+  const inputsHtml = sectionCard("Inputs", null, `
+    <div class="grid-2">
+      <div class="form-field"><label class="form-label">Current balance</label><div class="input-prefix"><input class="text-input" id="scen-balance" inputmode="decimal" value="${s.balance}"/></div></div>
+      <div class="form-field"><label class="form-label">Current rate (%)</label><div class="input-suffix"><input class="text-input" id="scen-current" inputmode="decimal" value="${s.currentRate}"/></div></div>
+      <div class="form-field"><label class="form-label">Scenario rate (%)</label><div class="input-suffix"><input class="text-input" id="scen-scenario" inputmode="decimal" value="${s.scenarioRate}"/></div></div>
+      <div class="form-field"><label class="form-label">Remaining term (yrs)</label><input class="text-input" id="scen-remaining" inputmode="decimal" value="${s.remainingYears}"/></div>
+      <div class="form-field"><label class="form-label">Amortization (yrs)</label><input class="text-input" id="scen-amort" inputmode="decimal" value="${s.amortYears}"/></div>
+      <div class="form-field"><label class="form-label">Closing costs</label><div class="input-prefix"><input class="text-input" id="scen-closing" inputmode="decimal" value="${s.closingCosts}"/></div></div>
+      <div class="form-field" style="grid-column:1/-1"><label class="form-label">Monthly escrow (optional)</label><div class="input-prefix"><input class="text-input" id="scen-escrow" inputmode="decimal" value="${s.monthlyEscrow}"/></div></div>
+    </div>
+    <div class="pill-group" style="margin-top:16px">
+      <button class="pill-btn ${s.view==='monthly'?'active':''}" data-action="view-monthly">Monthly amortization</button>
+      <button class="pill-btn ${s.view==='annual'?'active':''}" data-action="view-annual">Annual amortization</button>
+    </div>
+    ${primaryBtn("Run scenario","run")}
+  `).replace(/<button class="btn primary"/, '<button class="btn primary" style="margin-top:16px"');
+
+  const summaryDiv = `<div id="scen-summary"></div>`;
+  const scheduleDiv = `<div id="scen-schedule"></div>`;
+
+  container.innerHTML = inputsHtml + summaryDiv + scheduleDiv
+    + primaryBtn(`Next: Lender match${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Back","back");
+
+  wrap.appendChild(container);
+
+  function runScenario() {
+    s.balance = $("#scen-balance").value;
+    s.currentRate = $("#scen-current").value;
+    s.scenarioRate = $("#scen-scenario").value;
+    s.remainingYears = $("#scen-remaining").value;
+    s.amortYears = $("#scen-amort").value;
+    s.closingCosts = $("#scen-closing").value;
+    s.monthlyEscrow = $("#scen-escrow").value;
+
+    const p = parseFloat(s.balance) || 0;
+    const cr = parseFloat(s.currentRate) || 0;
+    const sr = parseFloat(s.scenarioRate) || 0;
+    const ry = parseFloat(s.remainingYears) || 0;
+    const ay = parseFloat(s.amortYears) || 0;
+    const cc = parseFloat(s.closingCosts) || 0;
+    const escrow = parseFloat(s.monthlyEscrow) || 0;
+    if (!p || !ry || !ay) return;
+
+    const current = buildBrokerSchedule(p, cr, ay, ry);
+    const scenario = buildBrokerSchedule(p, sr, ay, ry);
+    const monthlySavings = current.payment - scenario.payment;
+    const annualSavings = monthlySavings * 12;
+    const breakeven = monthlySavings > 0 ? cc / monthlySavings : 0;
+    const annual = aggregateAnnual(scenario.rows);
+
+    $("#scen-summary").innerHTML = sectionCard("Scenario summary", null, `
+      <div class="kpi-grid">
+        ${kpiBox("Current P&I", fmtCur0(current.payment + escrow), "Includes escrow")}
+        ${kpiBox("Scenario P&I", fmtCur0(scenario.payment + escrow), "Includes escrow")}
+        ${kpiBox("Monthly savings", fmtCur0(monthlySavings), "Current vs scenario", monthlySavings > 0 ? "good" : "danger")}
+        ${kpiBox("Annual savings", fmtCur0(annualSavings), "12 × monthly delta", annualSavings > 0 ? "good" : "danger")}
+        ${kpiBox("Break-even", monthlySavings > 0 ? `${breakeven.toFixed(1)} mo` : "—", "Closing / savings")}
+        ${kpiBox("Balloon at maturity", fmtCur0(scenario.balloon), "End of remaining term")}
+      </div>
+      <p class="scen-helper">
+        Scenario compares <strong>${cr.toFixed(2)}%</strong> vs <strong>${sr.toFixed(2)}%</strong>
+        over <strong>${ry.toFixed(1)} years</strong> with <strong>${ay.toFixed(1)}-yr amortization</strong>.
+        Payments include escrow of ${fmtCur0(escrow)}.
+      </p>
+    `);
+
+    // Schedule
+    const isMonthly = s.view === "monthly";
+    const headers = isMonthly
+      ? ["Mo","Payment","Principal","Interest","Balance"]
+      : ["Year","Total Pmts","Principal","Interest","Ending Bal"];
+    const rows = isMonthly
+      ? scenario.rows.slice(0,24).map(r => [r.month, fmtCur(r.payment), fmtCur(r.principal), fmtCur(r.interest), fmtCur(r.balance)])
+      : annual.map(r => [`Year ${r.year}`, fmtCur(r.payment), fmtCur(r.principal), fmtCur(r.interest), fmtCur(r.balance)]);
+
+    $("#scen-schedule").innerHTML = `
+      <div class="schedule-table-card">
+        <div class="schedule-table-head">
+          <h3>${isMonthly ? "Monthly amortization" : "Annual amortization"}</h3>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sched">
+            <thead><tr>${headers.map((h,i)=>`<th class="${i===0?'':'num'}">${h}</th>`).join("")}</tr></thead>
+            <tbody>
+              ${rows.map(r => `<tr>
+                <td>${r[0]}</td>
+                <td class="num">${r[1]}</td>
+                <td class="num principal">${r[2]}</td>
+                <td class="num interest">${r[3]}</td>
+                <td class="num balance">${r[4]}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${isMonthly ? '<p class="table-footer">Showing first 24 months. Export full schedule in production.</p>' : ''}
+      </div>
+    `;
+  }
+
+  wireActions(container, {
+    "run": runScenario,
+    "view-monthly": () => { s.view = "monthly"; renderContent(); },
+    "view-annual": () => { s.view = "annual"; renderContent(); },
+    next: () => goto("lender-match"),
+    back: () => goto("qa"),
+  });
+
+  runScenario();
+}
+
+// ─── LB11 Lender match ────────────────────────────────────────────
+function renderBrokerLenderMatch(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const matches = sectionCard("Potential lender matches", null,
+    listRow({ title:"First National Bank", sub:"Multifamily bridge / perm lender · DSCR and sponsor fit strong.", right:`<span class="action-link">Send →</span>` })
+    + listRow({ title:"Lone Star Credit Union", sub:"Lower leverage target, but competitive fixed rates.", right:`<span class="action-link">Send →</span>` })
+    + listRow({ title:"Summit Debt Fund", sub:"Good for quicker close; higher coupon.", right:`<span class="action-link">Send →</span>` })
+  );
+  const consentHtml = sectionCard("Disclosure & consent", null, `
+    <p class="section-sub" style="margin-bottom:12px">
+      I authorize CFOworks to share this package with selected lenders and understand that CFOworks may receive referral or brokerage compensation if a loan closes.
+    </p>
+    <button class="pill-btn ${state.consented?'active':''}" data-action="toggle-consent">
+      ${state.consented ? iconSize("i-check", 12) : ""} I understand & consent
+    </button>
+    <div class="consent-banner">
+      ${iconSize("i-shield", 16)}
+      <p>This disclosure does not increase your rate or lender fees. Compensation is governed by separate agreements and applicable commercial lending rules.</p>
+    </div>
+  `);
+  container.innerHTML = matches + consentHtml
+    + `<button class="btn primary" data-action="next" ${state.consented?'':'disabled'}>Send package to selected lenders ${iconSize("i-arrow-r",14)}</button>`
+    + secondaryBtn("Share with my own lender / broker","next");
+  wrap.appendChild(container);
+
+  wireActions(container, {
+    next: () => goto("term-sheets"),
+    "toggle-consent": () => { state.consented = !state.consented; renderContent(); },
+  });
+}
+
+// ─── LB12 Term sheets ─────────────────────────────────────────────
+function renderBrokerTermSheets(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  container.innerHTML =
+    sectionCard("Top offers", null,
+      listRow({ title:"First National Bank", sub:"4.90% fixed · 10 yrs · 25-yr amort · 0.75 pts · Recourse limited.", right: statusPill("Best fit","good") })
+      + listRow({ title:"Lone Star Credit Union", sub:"4.82% fixed · 7 yrs · 25-yr amort · 1.10 pts · Full recourse.", right:`<span class="action-link">Compare</span>` })
+      + listRow({ title:"Summit Debt Fund", sub:"6.10% floating · 3 yrs · IO 12 mo · Fast close.", right:`<span class="action-link">Compare</span>` })
+    )
+    + primaryBtn(`Mark chosen lender${iconSize("i-arrow-r",14)}`,"next")
+    + secondaryBtn("Export comparison memo","back");
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("closing"), back: () => goto("lender-match") });
+}
+
+// ─── LB13 Closing ─────────────────────────────────────────────────
+function renderBrokerClosing(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+  const checklist = sectionCard("Checklist", null,
+    listRow({ title:"Appraisal ordered", sub:"Expected back May 20.", right: statusPill("Done","good") })
+    + listRow({ title:"Title / survey", sub:"Vault docs shared to lender counsel.", right: statusPill("Done","good") })
+    + listRow({ title:"Insurance certificates", sub:"Need lender named as mortgagee / additional insured.", right: statusPill("Pending","warn") })
+    + listRow({ title:"Entity resolution / signatures", sub:"Borrowing resolution for Johnson Realty LLC.", right: statusPill("Pending","warn") })
+  );
+  const funded = sectionCard("When funded", null, `
+    <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:12px">
+      ${iconSize("i-alert",16,"icon")}
+      <div style="font-size:11px; color:var(--muted-foreground); line-height:1.6">
+        <p style="margin-bottom:4px">On funding, CFOworks should:</p>
+        <ul style="padding-left:18px; list-style:disc">
+          <li>Create / update the live loan in Loans module</li>
+          <li>Update Banking funding account</li>
+          <li>Post accounting entries (liability, fees, payoff)</li>
+          <li>Refresh AI CFO cashflow / refi logic</li>
+        </ul>
+      </div>
+    </div>
+    ${primaryBtn(`${iconSize("i-check",14)} Mark loan funded`, "next")}
+    <button class="btn secondary" style="margin-top:8px">Upload closing package</button>
+  `);
+  container.innerHTML = checklist + funded;
+  wrap.appendChild(container);
+  wireActions(container, { next: () => goto("home") });
+}
+
+// ═══ Tab: Modeler ═════════════════════════════════════════════════
+function renderModeler(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+
+  const model1 = computeAmortization(state.modelAmount, state.modelRate, state.modelTerm);
+  const model2 = computeAmortization(state.modelAmount, state.compareRate, state.modelTerm);
+
+  const inputsCard = document.createElement("div");
+  inputsCard.className = "section-card";
+  inputsCard.innerHTML = `
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px">
+      ${iconSize("i-calc",16,"icon")}
+      <h2>Scenario Modeler</h2>
+      <span style="margin-left:auto; font-size:11px; color:var(--muted-foreground)">Compare 2 rates</span>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="form-field">
+        <label class="form-label">Loan Amount</label>
+        <div class="input-prefix"><input class="text-input" type="number" id="m-amount" value="${state.modelAmount}"/></div>
+      </div>
+      <div class="grid-2">
+        <div class="form-field">
+          <label class="form-label">Term</label>
+          <select class="select-input" id="m-term">
+            ${[60,120,180,240,360].map(v => `<option value="${v}" ${state.modelTerm===v?'selected':''}>${v/12} yr (${v})</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Entity</label>
+          <select class="select-input">
+            <option>Personal</option><option>Johnson Real Estate LLC</option><option>MJ Tech Consulting</option><option>Urban Eats Group</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-field">
+          <label class="form-label">Rate A (%)</label>
+          <div class="input-suffix"><input class="text-input" type="number" step="0.125" id="m-rate-a" value="${state.modelRate}"/></div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Rate B (%)</label>
+          <div class="input-suffix"><input class="text-input" type="number" step="0.125" id="m-rate-b" value="${state.compareRate}"/></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const comparePairHtml = `
+    <div class="compare-grid">
+      ${["A","B"].map((L,i) => {
+        const rate = i === 0 ? state.modelRate : state.compareRate;
+        const data = i === 0 ? model1 : model2;
+        return `
+          <div class="compare-card ${i === 0 ? 'a' : 'b'}">
+            <p class="label">Scenario ${L}</p>
+            <p class="rate">${rate}% APR</p>
+            <div class="mini-row"><p class="label">Monthly</p><p class="value">${fmtCur(data.payment)}</p></div>
+            <div class="mini-row"><p class="label">Total Interest</p><p class="value">${fmt(data.totalInterest)}</p></div>
+            <div class="mini-row"><p class="label">Total Paid</p><p class="value">${fmt(data.totalPaid)}</p></div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  let savingsHtml = "";
+  if (model1.payment !== model2.payment) {
+    const aWins = model1.payment < model2.payment;
+    savingsHtml = `
+      <div class="savings-callout good">
+        <div class="icon">${iconSize("i-trend-d",20)}</div>
+        <div>
+          <p class="title">${aWins
+            ? `Rate A saves ${fmtCur(model2.payment - model1.payment)}/mo`
+            : `Rate B saves ${fmtCur(model1.payment - model2.payment)}/mo`}</p>
+          <p class="sub">Interest diff: ${fmt(Math.abs(model1.totalInterest - model2.totalInterest))} over term</p>
+        </div>
+      </div>
+    `;
+  }
+
+  container.appendChild(inputsCard);
+  const cmp = document.createElement("div");
+  cmp.innerHTML = comparePairHtml + savingsHtml;
+  container.appendChild(cmp);
+  wrap.appendChild(container);
+
+  const rerender = () => {
+    state.modelAmount = Number($("#m-amount").value);
+    state.modelTerm = Number($("#m-term").value);
+    state.modelRate = Number($("#m-rate-a").value);
+    state.compareRate = Number($("#m-rate-b").value);
+    renderContent();
+  };
+  ["m-amount","m-term","m-rate-a","m-rate-b"].forEach(id => $(`#${id}`).addEventListener("input", rerender));
+}
+
+// ═══ Tab: Schedule ════════════════════════════════════════════════
+function renderSchedule(wrap) {
+  const container = document.createElement("div");
+  container.className = "stack";
+
+  const selected = loans.find(l => l.id === state.selectedLoanId) || loans[0];
+  const amort = computeAmortization(selected.originalAmount, selected.rate, selected.term);
+  const yearly = amort.schedule.filter(s => s.month % 12 === 0 || s.month === 1).map(s => ({ year:`Yr ${s.year}`, balance:s.balance }));
+
+  // Pills
+  const pills = document.createElement("div");
+  pills.className = "selector-pills";
+  pills.innerHTML = loans.map(l => `
+    <button class="pill-btn ${state.selectedLoanId===l.id?'active':''}" data-loan="${l.id}">${l.type}</button>
+  `).join("");
+  pills.querySelectorAll("[data-loan]").forEach(b => {
+    b.addEventListener("click", () => {
+      state.selectedLoanId = b.dataset.loan;
+      renderContent();
+    });
+  });
+  container.appendChild(pills);
+
+  // Chart (SVG area)
+  const chartCard = document.createElement("div");
+  chartCard.className = "schedule-chart";
+  const W = 680, H = 160, PAD = 24;
+  const xs = yearly.map((_, i) => PAD + (i * (W - PAD*2)) / Math.max(1, yearly.length - 1));
+  const maxY = Math.max(...yearly.map(y => y.balance));
+  const ys = yearly.map(y => H - PAD - (y.balance / maxY) * (H - PAD*2));
+  const line = xs.map((x,i) => `${i===0?'M':'L'}${x},${ys[i]}`).join(" ");
+  const area = `${line} L${xs[xs.length-1]},${H-PAD} L${xs[0]},${H-PAD} Z`;
+  chartCard.innerHTML = `
+    <div class="top-row">
+      <div>
+        <h2>${selected.type}</h2>
+        <p style="font-size:11px; color:var(--muted-foreground); margin-top:2px">${selected.lender} · ${selected.rate}%</p>
+      </div>
+      <div class="total-interest">
+        <p class="label">Total Interest</p>
+        <p class="value">${fmt(amort.totalInterest)}</p>
+      </div>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" class="chart-svg" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0.01"/>
+        </linearGradient>
+      </defs>
+      <g style="color:var(--primary)">
+        <path d="${area}" fill="url(#areaGrad)"/>
+        <path d="${line}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      </g>
+    </svg>
+  `;
+  container.appendChild(chartCard);
+
+  // Table
+  const tableCard = document.createElement("div");
+  tableCard.className = "schedule-table-card";
+  tableCard.innerHTML = `
+    <div class="schedule-table-head">
+      <h3>Payment Schedule</h3>
+      <button class="export-btn">${iconSize("i-download",12)} Export</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="sched">
+        <thead><tr>${["Mo","Payment","Principal","Interest","Balance"].map((h,i)=>`<th class="${i===0?'':'num'}">${h}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${amort.schedule.slice(0,20).map(row => `<tr>
+            <td>${row.month}</td>
+            <td class="num">${fmtCur(row.payment)}</td>
+            <td class="num principal">${fmtCur(row.principal)}</td>
+            <td class="num interest">${fmtCur(row.interest)}</td>
+            <td class="num balance">${fmtCur(row.balance)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-footer">Showing first 20 of ${selected.term} months</p>
+  `;
+  container.appendChild(tableCard);
+
+  wrap.appendChild(container);
+}
+
+// ═ Boot ═════════════════════════════════════════════════════════
+renderSummary();
+renderAll();
+</script>
+
+</body>
+</html>
